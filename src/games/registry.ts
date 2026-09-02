@@ -4,12 +4,12 @@
 // the real game while leaving this metadata (and the rest of the app) untouched.
 
 import { lazy, type ComponentType } from 'react'
-import PlaceholderGame from './PlaceholderGame'
 import type { GameProps } from './PlaceholderGame'
 import LicensePlate from './LicensePlate'
 import RoadTrivia from './RoadTrivia'
 import ExtraMileBingo from './ExtraMileBingo'
 import RoadsideDetour from './RoadsideDetour'
+import LaunchReaction from './LaunchReaction'
 
 // The Phaser arcade games are lazy-loaded so Phaser (~1.5 MB) is fetched only
 // when someone opens one of those games, keeping the initial page light. They
@@ -132,11 +132,11 @@ export const GAMES: Record<string, GameMeta> = {
   'mystery-challenge': {
     slug: 'mystery-challenge',
     title: 'Mystery Challenge',
-    blurb: "A surprise Extra Mile challenge revealed on the day.",
+    blurb: 'A drag-race launch-reaction challenge — fastest reflexes win.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: LaunchReaction,
   },
 }
 
