@@ -48,6 +48,9 @@ export default function Layout({ children }: { children: ReactNode }) {
       <footer className="road-strip mt-12 h-2" />
       <div className="bg-seven-dark py-4 text-center text-xs text-white/60">
         Going the Extra Mile · 7-Eleven Customer Service Week 2026
+        <Link to="/admin" className="ml-3 text-white/40 hover:text-white/70">
+          Admin
+        </Link>
       </div>
     </div>
   )
