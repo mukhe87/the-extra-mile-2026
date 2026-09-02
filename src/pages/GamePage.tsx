@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getGame } from '../games/registry'
 import { isSlugAvailableToday } from '../lib/schedule'
@@ -70,12 +70,20 @@ export default function GamePage() {
             <NameGate onDone={() => setPlayerState(getPlayer())} />
           ) : (
             <>
-              <Game
-                slug={game.slug}
-                title={game.title}
-                scoreLabel={game.scoreLabel}
-                onScore={handleScore}
-              />
+              <Suspense
+                fallback={
+                  <div className="rounded-2xl bg-white p-8 text-center text-seven-dark/60 shadow">
+                    Loading game…
+                  </div>
+                }
+              >
+                <Game
+                  slug={game.slug}
+                  title={game.title}
+                  scoreLabel={game.scoreLabel}
+                  onScore={handleScore}
+                />
+              </Suspense>
               {lastScore !== null && (
                 <div className="mt-4 rounded-xl bg-white p-4 text-center shadow">
                   <p className="font-display text-2xl">

@@ -3,13 +3,26 @@
 // leaderboard, scoring — runs end to end. Phases 1-4 replace each `load` with
 // the real game while leaving this metadata (and the rest of the app) untouched.
 
-import type { ComponentType } from 'react'
+import { lazy, type ComponentType } from 'react'
 import PlaceholderGame from './PlaceholderGame'
 import type { GameProps } from './PlaceholderGame'
 import LicensePlate from './LicensePlate'
 import RoadTrivia from './RoadTrivia'
 import ExtraMileBingo from './ExtraMileBingo'
 import RoadsideDetour from './RoadsideDetour'
+
+// The Phaser arcade games are lazy-loaded so Phaser (~1.5 MB) is fetched only
+// when someone opens one of those games, keeping the initial page light. They
+// share one async chunk. GamePage wraps game rendering in <Suspense>.
+const SnackRun = lazy(() => import('./ArcadeGames').then((m) => ({ default: m.SnackRun })))
+const FuelLine = lazy(() => import('./ArcadeGames').then((m) => ({ default: m.FuelLine })))
+const CrossInterstate = lazy(() =>
+  import('./ArcadeGames').then((m) => ({ default: m.CrossInterstate })),
+)
+const TrafficBuster = lazy(() => import('./ArcadeGames').then((m) => ({ default: m.TrafficBuster })))
+const NightShiftDefender = lazy(() =>
+  import('./ArcadeGames').then((m) => ({ default: m.NightShiftDefender })),
+)
 
 export type GameMode = 'leaderboard' | 'head-to-head'
 
@@ -66,8 +79,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Clear the aisle maze of Slurpee cups without getting cornered.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: SnackRun,
   },
   'fixed-shooter': {
     slug: 'fixed-shooter',
@@ -75,8 +88,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Hold the lane and clear the incoming wave — classic fixed-shooter.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: TrafficBuster,
   },
   'road-crosser': {
     slug: 'road-crosser',
@@ -84,8 +97,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Hop the traffic lanes and rivers to reach the store — one wrong step and it is over.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: CrossInterstate,
   },
   snake: {
     slug: 'snake',
@@ -93,8 +106,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Grow the fuel line without crossing yourself.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: FuelLine,
   },
   'space-shooter': {
     slug: 'space-shooter',
@@ -102,8 +115,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Defend the store through waves — descending fixed-shooter.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: NightShiftDefender,
   },
   'car-racing': {
     slug: 'car-racing',
