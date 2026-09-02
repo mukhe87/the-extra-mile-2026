@@ -23,6 +23,8 @@ const TrafficBuster = lazy(() => import('./ArcadeGames').then((m) => ({ default:
 const NightShiftDefender = lazy(() =>
   import('./ArcadeGames').then((m) => ({ default: m.NightShiftDefender })),
 )
+// The racer also depends on Phaser; lazy-load it too.
+const RacerLobby = lazy(() => import('./racer/RacerLobby'))
 
 export type GameMode = 'leaderboard' | 'head-to-head'
 
@@ -121,11 +123,11 @@ export const GAMES: Record<string, GameMeta> = {
   'car-racing': {
     slug: 'car-racing',
     title: 'The Extra Mile Racer',
-    blurb: 'Race the strip head-to-head or chase your own best lap.',
+    blurb: 'Race the strip head-to-head or chase your own best time.',
     mode: 'head-to-head',
-    scoreLabel: 'seconds',
-    built: false,
-    load: PlaceholderGame,
+    scoreLabel: 'points',
+    built: true,
+    load: RacerLobby,
   },
   'mystery-challenge': {
     slug: 'mystery-challenge',
