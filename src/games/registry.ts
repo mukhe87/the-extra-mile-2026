@@ -6,6 +6,10 @@
 import type { ComponentType } from 'react'
 import PlaceholderGame from './PlaceholderGame'
 import type { GameProps } from './PlaceholderGame'
+import LicensePlate from './LicensePlate'
+import RoadTrivia from './RoadTrivia'
+import ExtraMileBingo from './ExtraMileBingo'
+import RoadsideDetour from './RoadsideDetour'
 
 export type GameMode = 'leaderboard' | 'head-to-head'
 
@@ -26,8 +30,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Spot state plates on the open road before the timer runs out.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: LicensePlate,
   },
   'road-trivia': {
     slug: 'road-trivia',
@@ -35,8 +39,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Customer-service and road-trip trivia, faster answers score higher.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: RoadTrivia,
   },
   'extra-mile-bingo': {
     slug: 'extra-mile-bingo',
@@ -44,8 +48,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'Road-trip bingo — mark the squares as they roll by for a line.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: ExtraMileBingo,
   },
   'roadside-detour': {
     slug: 'roadside-detour',
@@ -53,8 +57,8 @@ export const GAMES: Record<string, GameMeta> = {
     blurb: 'A quick escape-room detour — solve the clues to get back on the road.',
     mode: 'leaderboard',
     scoreLabel: 'points',
-    built: false,
-    load: PlaceholderGame,
+    built: true,
+    load: RoadsideDetour,
   },
   muncher: {
     slug: 'muncher',
