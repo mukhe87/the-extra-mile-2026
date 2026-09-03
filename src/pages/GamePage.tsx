@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getGame } from '../games/registry'
 import { isSlugAvailableToday } from '../lib/schedule'
 import { getPlayer, type Player } from '../lib/player'
+import { isAdmin } from '../lib/admin'
 import { submitScore } from '../lib/scores'
 import NameGate from '../components/NameGate'
 import Leaderboard from '../components/Leaderboard'
@@ -57,12 +58,19 @@ export default function GamePage() {
         <p className="text-seven-dark/70">{game.blurb}</p>
       </div>
 
-      {!availableToday && (
-        <div className="mb-6 rounded-xl border-2 border-seven-red/40 bg-seven-red/5 p-4 text-sm">
-          Heads up — this game isn’t on today’s schedule. You can still try it, but
-          it’s featured on its own day.
-        </div>
-      )}
+      {!availableToday &&
+        (isAdmin() ? (
+          <div className="mb-6 rounded-xl border-2 border-seven-orange/40 bg-seven-orange/5 p-4 text-sm">
+            Admin preview — this game isn’t on today’s public schedule, but you’re opening
+            it from the admin panel. Scores you post here count; clear them from the panel’s
+            reset when done.
+          </div>
+        ) : (
+          <div className="mb-6 rounded-xl border-2 border-seven-red/40 bg-seven-red/5 p-4 text-sm">
+            Heads up — this game isn’t on today’s schedule. You can still try it, but
+            it’s featured on its own day.
+          </div>
+        ))}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div>
