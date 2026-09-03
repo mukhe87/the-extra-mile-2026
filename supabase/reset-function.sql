@@ -3,11 +3,12 @@
 --
 -- Why a function: the public site uses the anon key, which (by design) cannot
 -- delete rows. This SECURITY DEFINER function runs with elevated rights but only
--- deletes when the caller passes the correct reset password — which lives here in
--- the database, never in the website code. The admin types it in the panel.
+-- deletes when the caller passes the correct password. The admin panel sends the
+-- password automatically after you log in — you don't type it again.
 --
--- 1) Replace 'CHANGE-ME-RESET-PASSWORD' with a strong password of your choice.
--- 2) Keep it separate from your VITE_ADMIN_PASSWORD (that one is public in the app).
+-- SET THE PASSWORD BELOW to the SAME value as your VITE_ADMIN_PASSWORD (your
+-- admin login), so a reset works right after you log into /admin. The value
+-- lives only here in the database.
 
 create or replace function public.reset_scores(pw text, game text)
 returns integer
@@ -18,7 +19,7 @@ as $$
 declare
   n integer;
 begin
-  if pw is distinct from 'CHANGE-ME-RESET-PASSWORD' then
+  if pw is distinct from 'SET-THIS-TO-YOUR-ADMIN-PASSWORD' then
     raise exception 'unauthorized';
   end if;
 
@@ -36,4 +37,4 @@ $$;
 -- Allow the site (anon) to call it; the password check inside is the real gate.
 grant execute on function public.reset_scores(text, text) to anon;
 
--- To change the reset password later, just re-run this whole snippet with a new value.
+-- If you ever change your admin password, re-run this snippet with the new value.

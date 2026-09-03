@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react'
-import * as XLSX from 'xlsx'
-import {
-  fetchAllScores,
-  rankBestPerPlayer,
-  overallStandings,
-  resetScores,
-  type ScoreRow,
-} from '../lib/scores'
+import { fetchAllScores, resetScores } from '../lib/scores'
+import { downloadDayReport, downloadFullReport, downloadBackup } from '../lib/exporting'
 import { GAMES } from '../games/registry'
 import { SCHEDULE, DAY_LABEL, type DayKey } from '../lib/schedule'
 import { setAdmin } from '../lib/admin'
@@ -25,6 +19,7 @@ export default function Admin() {
   const [entered, setEntered] = useState('')
   const [ok, setOk] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const unlock = (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,18 +62,18 @@ export default function Admin() {
       <header>
         <h1 className="font-display text-3xl">Admin panel</h1>
         <p className="text-seven-dark/70">
-          Play or preview any day’s games, download standings, and reset the scoreboard.
+          Play or preview any day’s games, download reports by day, and reset the scoreboard.
         </p>
       </header>
-      <SummaryCard />
+      <SummaryCard reloadKey={reloadKey} />
       <PlayAnyGame />
-      <ExportCard />
-      <ResetCard />
+      <DownloadCard />
+      <ResetCard onDone={() => setReloadKey((k) => k + 1)} />
     </div>
   )
 }
 
-function SummaryCard() {
+function SummaryCard({ reloadKey }: { reloadKey: number }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -95,14 +90,10 @@ function SummaryCard() {
     return () => {
       active = false
     }
-  }, [])
+  }, [reloadKey])
 
   if (error)
-    return (
-      <p className="rounded-xl bg-seven-red/5 p-3 text-sm text-seven-red">
-        Couldn’t load stats: {error}
-      </p>
-    )
+    return <p className="rounded-xl bg-seven-red/5 p-3 text-sm text-seven-red">Couldn’t load stats: {error}</p>
   if (!summary) return null
   return (
     <div className="grid grid-cols-3 gap-3">
@@ -140,94 +131,88 @@ function PlayAnyGame() {
   )
 }
 
-function ExportCard() {
-  const [busy, setBusy] = useState(false)
+function DownloadCard() {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const exportXlsx = async () => {
-    setBusy(true)
+  const run = async (label: string, fn: (rows: Awaited<ReturnType<typeof fetchAllScores>>) => number | void) => {
+    setBusy(label)
     setError(null)
+    setNote(null)
     try {
       const rows = await fetchAllScores()
-      const wb = XLSX.utils.book_new()
-      const overall = overallStandings(rows).map((e) => ({
-        Rank: e.rank,
-        'First Name': e.firstName,
-        'Last Name': e.lastName,
-        'Total Points': e.totalBest,
-        'Games Played': e.gamesPlayed,
-      }))
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overall), 'Overall')
-      const allSheet = XLSX.utils.json_to_sheet(
-        rows.map((r: ScoreRow) => ({
-          Game: GAMES[r.game_slug]?.title ?? r.game_slug,
-          'First Name': r.first_name,
-          'Last Name': r.last_name,
-          Score: r.score,
-          'Submitted (UTC)': r.created_at,
-        })),
-      )
-      XLSX.utils.book_append_sheet(wb, allSheet, 'All Scores')
-      for (const slug of Object.keys(GAMES)) {
-        const gameRows = rows.filter((r) => r.game_slug === slug)
-        if (gameRows.length === 0) continue
-        const ranked = rankBestPerPlayer(gameRows).map((e) => ({
-          Rank: e.rank,
-          'First Name': e.firstName,
-          'Last Name': e.lastName,
-          'Best Score': e.score,
-        }))
-        XLSX.utils.book_append_sheet(
-          wb,
-          XLSX.utils.json_to_sheet(ranked),
-          (GAMES[slug]?.title ?? slug).slice(0, 31),
-        )
-      }
-      XLSX.writeFile(wb, `extra-mile-leaderboard-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      const count = fn(rows)
+      if (typeof count === 'number')
+        setNote(count === 0 ? `No scores for ${label} yet — downloaded an empty sheet.` : `Downloaded ${label} (${count} plays).`)
     } catch (e) {
-      setError(`Export failed: ${(e as Error)?.message ?? 'unknown error'}.`)
+      setError(`Download failed: ${(e as Error)?.message ?? 'unknown error'}.`)
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
   return (
     <section className="rounded-2xl bg-white p-6 shadow">
-      <h2 className="mb-1 font-display text-2xl">Download standings</h2>
+      <h2 className="mb-1 font-display text-2xl">Download reports</h2>
       <p className="mb-4 text-sm text-seven-dark/70">
-        Excel workbook: an Overall standings sheet, an All Scores sheet, and a ranked sheet
-        per game.
+        A separate Excel report per weekday (only scores played that day), so days don’t mix.
+        Each sheet lists the game name next to every player’s score. “Full week” includes overall
+        standings.
       </p>
-      {error && <p className="mb-3 text-sm text-seven-red">{error}</p>}
-      <button
-        onClick={exportXlsx}
-        disabled={busy}
-        className="rounded-full bg-seven-green px-6 py-3 font-bold text-white disabled:opacity-50"
-      >
-        {busy ? 'Building workbook…' : 'Download .xlsx'}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        {WEEK.map((d) => (
+          <button
+            key={d}
+            disabled={busy !== null}
+            onClick={() => run(DAY_LABEL[d], (rows) => downloadDayReport(rows, d, DAY_LABEL[d]))}
+            className="rounded-full bg-seven-green px-5 py-2.5 font-bold text-white disabled:opacity-50"
+          >
+            {busy === DAY_LABEL[d] ? '…' : DAY_LABEL[d]}
+          </button>
+        ))}
+        <button
+          disabled={busy !== null}
+          onClick={() => run('Full week', (rows) => downloadFullReport(rows))}
+          className="rounded-full bg-seven-dark px-5 py-2.5 font-bold text-white disabled:opacity-50"
+        >
+          {busy === 'Full week' ? '…' : 'Full week'}
+        </button>
+      </div>
+      {note && <p className="mt-3 text-sm text-seven-green">{note}</p>}
+      {error && <p className="mt-3 text-sm text-seven-red">{error}</p>}
     </section>
   )
 }
 
-function ResetCard() {
+function ResetCard({ onDone }: { onDone: () => void }) {
   const [scope, setScope] = useState<string>('__all__')
-  const [pw, setPw] = useState('')
-  const [confirming, setConfirming] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
-  const doReset = async () => {
+  const scopeLabel = scope === '__all__' ? 'all games' : GAMES[scope]?.title ?? scope
+
+  const doDelete = async (saveFirst: boolean) => {
     setBusy(true)
     setMsg(null)
     try {
-      const deleted = await resetScores(pw, scope === '__all__' ? undefined : scope)
-      const where = scope === '__all__' ? 'all games' : GAMES[scope]?.title ?? scope
-      setMsg({ kind: 'ok', text: `Cleared ${deleted} score${deleted === 1 ? '' : 's'} from ${where}.` })
-      setConfirming(false)
-      setPw('')
+      if (saveFirst) {
+        const rows = await fetchAllScores()
+        downloadBackup(rows, scope)
+      }
+      const deleted = await resetScores(ADMIN_PASSWORD ?? '', scope === '__all__' ? undefined : scope)
+      setMsg({
+        kind: 'ok',
+        text: `${saveFirst ? 'Saved a backup, then cleared' : 'Cleared'} ${deleted} score${
+          deleted === 1 ? '' : 's'
+        } from ${scopeLabel}.`,
+      })
+      setShowConfirm(false)
+      onDone()
     } catch (e) {
       setMsg({ kind: 'err', text: (e as Error)?.message ?? 'Reset failed.' })
+      setShowConfirm(false)
     } finally {
       setBusy(false)
     }
@@ -237,8 +222,7 @@ function ResetCard() {
     <section className="rounded-2xl border-2 border-seven-red/30 bg-seven-red/5 p-6">
       <h2 className="mb-1 font-display text-2xl text-seven-red">Reset the scoreboard</h2>
       <p className="mb-4 text-sm text-seven-dark/70">
-        Permanently deletes scores. Requires the separate reset password stored in the
-        database (see <code>supabase/reset-function.sql</code>) — not the admin login above.
+        Permanently deletes scores. Choose what to clear, then confirm.
       </p>
 
       <div className="grid gap-3 sm:max-w-md">
@@ -258,47 +242,15 @@ function ResetCard() {
           </select>
         </label>
 
-        <label className="text-sm font-bold">
-          Reset password
-          <input
-            type="password"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-            placeholder="Reset password"
-            className="mt-1 w-full rounded-lg border-2 border-seven-dark/15 px-3 py-2 focus:border-seven-red focus:outline-none"
-          />
-        </label>
-
-        {!confirming ? (
-          <button
-            onClick={() => setConfirming(true)}
-            disabled={!pw}
-            className="justify-self-start rounded-full bg-seven-red px-6 py-2.5 font-bold text-white disabled:opacity-50"
-          >
-            Reset…
-          </button>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3">
-            <span className="text-sm font-bold">
-              Delete{' '}
-              {scope === '__all__' ? 'ALL scores' : `all “${GAMES[scope]?.title}” scores`}? This
-              can’t be undone.
-            </span>
-            <button
-              onClick={doReset}
-              disabled={busy}
-              className="rounded-full bg-seven-red px-5 py-2 font-bold text-white disabled:opacity-50"
-            >
-              {busy ? 'Clearing…' : 'Yes, delete'}
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              className="rounded-full border-2 border-seven-dark/15 px-5 py-2 font-bold"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+        <button
+          onClick={() => {
+            setMsg(null)
+            setShowConfirm(true)
+          }}
+          className="justify-self-start rounded-full bg-seven-red px-6 py-2.5 font-bold text-white"
+        >
+          Reset
+        </button>
 
         {msg && (
           <p className={`text-sm font-bold ${msg.kind === 'ok' ? 'text-seven-green' : 'text-seven-red'}`}>
@@ -306,7 +258,82 @@ function ResetCard() {
           </p>
         )}
       </div>
+
+      {showConfirm && (
+        <ConfirmResetModal
+          scopeLabel={scopeLabel}
+          busy={busy}
+          onSaveThenDelete={() => doDelete(true)}
+          onDelete={() => doDelete(false)}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
     </section>
+  )
+}
+
+function ConfirmResetModal({
+  scopeLabel,
+  busy,
+  onSaveThenDelete,
+  onDelete,
+  onCancel,
+}: {
+  scopeLabel: string
+  busy: boolean
+  onSaveThenDelete: () => void
+  onDelete: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onCancel()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [busy, onCancel])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Confirm reset"
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-2 font-display text-xl text-seven-red">Reset the scoreboard?</h3>
+        <p className="mb-5 text-sm text-seven-dark/80">
+          You’re about to reset the scoreboard for <strong>{scopeLabel}</strong>. This permanently
+          deletes all of that data and can’t be undone. Would you like to save this data to an Excel
+          spreadsheet first?
+        </p>
+        <div className="grid gap-2">
+          <button
+            onClick={onSaveThenDelete}
+            disabled={busy}
+            className="rounded-full bg-seven-green px-5 py-2.5 font-bold text-white disabled:opacity-50"
+          >
+            {busy ? 'Working…' : 'Save data to Excel, then delete'}
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={busy}
+            className="rounded-full bg-seven-red px-5 py-2.5 font-bold text-white disabled:opacity-50"
+          >
+            {busy ? 'Working…' : 'Yes, delete data'}
+          </button>
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-full border-2 border-seven-dark/15 px-5 py-2.5 font-bold disabled:opacity-50"
+          >
+            No, don’t delete data
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
