@@ -36,8 +36,13 @@ export default function Admin() {
       const players = new Set(rows.map((r) => `${r.first_name} ${r.last_name}`.toLowerCase())).size
       const games = new Set(rows.map((r) => r.game_slug)).size
       setSummary({ players, plays: rows.length, games })
-    } catch {
-      /* leave summary null; export still works or reports its own error */
+      setError(null)
+    } catch (e) {
+      setError(
+        `Couldn't reach the database from this device: ${
+          (e as Error)?.message ?? 'unknown error'
+        }. The database is reachable from the internet — this is usually a corporate-network or browser-extension block. Try another network or browser.`,
+      )
     }
   }
 
@@ -86,8 +91,12 @@ export default function Admin() {
 
       const stamp = new Date().toISOString().slice(0, 10)
       XLSX.writeFile(wb, `extra-mile-leaderboard-${stamp}.xlsx`)
-    } catch {
-      setError('Export failed. Is Supabase configured?')
+    } catch (e) {
+      setError(
+        `Export failed: ${
+          (e as Error)?.message ?? 'unknown error'
+        }. The database is reachable from the internet, so this is usually a corporate-network or browser-extension block on this device — try another network or browser.`,
+      )
     } finally {
       setBusy(false)
     }
