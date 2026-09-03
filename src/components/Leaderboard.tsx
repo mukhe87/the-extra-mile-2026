@@ -15,15 +15,21 @@ export default function Leaderboard({
 }) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     const load = () => {
       fetchLeaderboard(gameSlug)
         .then((rows) => {
-          if (active) setEntries(rows)
+          if (active) {
+            setEntries(rows)
+            setError(null)
+          }
         })
-        .catch(() => {})
+        .catch((e) => {
+          if (active) setError(e?.message ? String(e.message) : 'Could not reach the leaderboard.')
+        })
         .finally(() => {
           if (active) setLoading(false)
         })
@@ -55,6 +61,14 @@ export default function Leaderboard({
       </div>
       {loading ? (
         <p className="px-5 pb-5 text-sm text-seven-dark/60">Loading…</p>
+      ) : error ? (
+        <div className="px-5 pb-5 text-sm">
+          <p className="font-bold text-seven-red">Couldn’t load the leaderboard.</p>
+          <p className="mt-1 text-seven-dark/60">
+            The database is reachable from the internet, so this is usually a network or
+            browser-extension block on this device. Details: <span className="font-mono">{error}</span>
+          </p>
+        </div>
       ) : entries.length === 0 ? (
         <p className="px-5 pb-5 text-sm text-seven-dark/60">
           No scores yet — be the first to go the Extra Mile.

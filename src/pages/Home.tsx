@@ -1,6 +1,7 @@
 import { currentDayKey, todaysGameSlugs, DAY_LABEL, SCHEDULE, type DayKey } from '../lib/schedule'
 import { getGame } from '../games/registry'
 import GameCard from '../components/GameCard'
+import OverallLeaderboard from '../components/OverallLeaderboard'
 
 const WEEK_ORDER: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri']
 
@@ -33,6 +34,10 @@ export default function Home() {
           })}
         </section>
       ) : null}
+
+      <section className="mb-12">
+        <OverallLeaderboard limit={10} />
+      </section>
 
       <section>
         <h2 className="mb-4 font-display text-2xl">This week’s lineup</h2>
