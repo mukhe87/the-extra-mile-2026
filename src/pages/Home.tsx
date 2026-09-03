@@ -12,18 +12,26 @@ export default function Home() {
 
   return (
     <div>
-      <section className="mb-8 rounded-3xl bg-seven-green p-8 text-white">
-        <p className="mb-1 text-sm font-bold uppercase tracking-widest text-white/80">
-          {isEventDay ? `${DAY_LABEL[day]} · Game of the Day` : 'See you on the road'}
-        </p>
-        <h1 className="font-display text-3xl sm:text-4xl">
-          Go the <span className="text-seven-orange">Extra</span> Mile
-        </h1>
-        <p className="mt-2 max-w-xl text-white/85">
-          {isEventDay
-            ? 'Play today’s games, post your score, and climb the live leaderboard. Games change every day this week.'
-            : 'The games run Monday through Friday during Customer Service Week. Check back on a weekday to play.'}
-        </p>
+      <section className="mb-8 overflow-hidden rounded-3xl bg-white shadow-sm">
+        <div className="flex flex-col items-center px-6 pt-8 text-center">
+          <h1 className="sr-only">The Extra Mile — 7-Eleven Customer Service Week 2026</h1>
+          <img
+            src="/extra-mile-logo.png"
+            alt="The Extra Mile — 7-Eleven Customer Service Week 2026"
+            className="w-full max-w-[280px]"
+            width={1238}
+            height={1271}
+          />
+          <p className="mt-4 text-sm font-bold uppercase tracking-widest text-seven-green">
+            {isEventDay ? `${DAY_LABEL[day]} · Game of the Day` : 'See you on the road'}
+          </p>
+          <p className="mx-auto mb-8 mt-2 max-w-xl text-seven-dark/70">
+            {isEventDay
+              ? 'Play today’s games, post your score, and climb the live leaderboard. Games change every day this week.'
+              : 'The games run Monday through Friday during Customer Service Week. Check back on a weekday to play.'}
+          </p>
+        </div>
+        <div className="road-strip h-2" />
       </section>
 
       {isEventDay ? (

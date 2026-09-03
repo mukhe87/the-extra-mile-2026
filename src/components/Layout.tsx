@@ -9,11 +9,15 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <header className="bg-seven-dark text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link to="/" className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-seven-green font-display text-2xl">
-              7
-            </span>
-            <span className="leading-tight">
+          <Link to="/" className="flex items-center gap-3" aria-label="The Extra Mile — home">
+            <img
+              src="/extra-mile-logo.png"
+              alt="The Extra Mile — 7-Eleven Customer Service Week 2026"
+              className="h-12 w-auto sm:h-14"
+              width={1238}
+              height={1271}
+            />
+            <span className="hidden leading-tight sm:block">
               <span className="block font-display text-xl tracking-wide">
                 THE <span className="text-seven-orange">EXTRA</span>{' '}
                 <span className="text-seven-red">MILE</span>
