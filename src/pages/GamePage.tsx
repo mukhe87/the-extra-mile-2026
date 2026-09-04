@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getGame } from '../games/registry'
 import { isSlugAvailableToday } from '../lib/schedule'
-import { getPlayer, type Player } from '../lib/player'
+import { getProfile, type Profile } from '../lib/profile'
 import { isAdmin } from '../lib/admin'
 import { submitScore } from '../lib/scores'
 import NameGate from '../components/NameGate'
@@ -11,7 +11,7 @@ import Leaderboard from '../components/Leaderboard'
 export default function GamePage() {
   const { slug = '' } = useParams()
   const game = getGame(slug)
-  const [player, setPlayerState] = useState<Player | null>(getPlayer())
+  const [player, setPlayerState] = useState<Profile | null>(getProfile())
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
@@ -75,7 +75,7 @@ export default function GamePage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div>
           {!player ? (
-            <NameGate onDone={() => setPlayerState(getPlayer())} />
+            <NameGate onDone={() => setPlayerState(getProfile())} />
           ) : (
             <>
               <Suspense
@@ -115,7 +115,11 @@ export default function GamePage() {
         <Leaderboard
           gameSlug={game.slug}
           scoreLabel={game.scoreLabel}
-          highlight={player ?? undefined}
+          highlight={
+            player
+              ? { profileId: player.id, firstName: player.firstName, lastName: player.lastName }
+              : undefined
+          }
         />
       </div>
     </div>

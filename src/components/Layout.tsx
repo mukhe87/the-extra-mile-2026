@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import type { ReactNode } from 'react'
-import { getPlayer, clearPlayer, fullName } from '../lib/player'
+import { useState, type ReactNode } from 'react'
+import { useProfile, clearProfile, fullName, type Profile } from '../lib/profile'
 
 // The branded shell: Extra Mile header on a road strip, content, footer.
 export default function Layout({ children }: { children: ReactNode }) {
-  const player = getPlayer()
+  const player = useProfile()
   return (
     <div className="min-h-screen">
       <header className="bg-seven-dark text-white">
@@ -27,21 +27,8 @@ export default function Layout({ children }: { children: ReactNode }) {
               </span>
             </span>
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
-            {player ? (
-              <>
-                <span className="hidden sm:inline text-white/80">{fullName(player)}</span>
-                <button
-                  onClick={() => {
-                    clearPlayer()
-                    location.reload()
-                  }}
-                  className="rounded-full border border-white/30 px-3 py-1 hover:bg-white/10"
-                >
-                  Not you?
-                </button>
-              </>
-            ) : null}
+          <nav className="flex items-center gap-3 text-sm">
+            {player ? <PlayerBadge player={player} /> : null}
           </nav>
         </div>
         <div className="road-strip h-2" />
@@ -57,5 +44,43 @@ export default function Layout({ children }: { children: ReactNode }) {
         </Link>
       </div>
     </div>
+  )
+}
+
+// Header badge: shows the signed-in player, their Player Pass (tap to copy so
+// they can reuse it on another device), and a "Not you?" sign-out.
+function PlayerBadge({ player }: { player: Profile }) {
+  const [copied, setCopied] = useState(false)
+  const copyPass = async () => {
+    try {
+      await navigator.clipboard.writeText(player.passCode)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* clipboard blocked — nothing to do */
+    }
+  }
+  return (
+    <>
+      <div className="hidden text-right leading-tight sm:block">
+        <span className="block text-white/85">{fullName(player)}</span>
+        <button
+          onClick={copyPass}
+          title="Copy your Player Pass"
+          className="font-mono text-[11px] tracking-wider text-seven-orange hover:text-white"
+        >
+          {copied ? 'Copied ✓' : player.passCode}
+        </button>
+      </div>
+      <button
+        onClick={() => {
+          clearProfile()
+          location.reload()
+        }}
+        className="rounded-full border border-white/30 px-3 py-1 hover:bg-white/10"
+      >
+        Not you?
+      </button>
+    </>
   )
 }
