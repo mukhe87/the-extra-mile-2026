@@ -2,16 +2,15 @@ import { Suspense, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getGame } from '../games/registry'
 import { isSlugAvailableToday } from '../lib/schedule'
-import { getProfile, type Profile } from '../lib/profile'
+import { useProfile } from '../lib/profile'
 import { isAdmin } from '../lib/admin'
 import { submitScore } from '../lib/scores'
-import NameGate from '../components/NameGate'
 import Leaderboard from '../components/Leaderboard'
 
 export default function GamePage() {
   const { slug = '' } = useParams()
   const game = getGame(slug)
-  const [player, setPlayerState] = useState<Profile | null>(getProfile())
+  const player = useProfile() // guaranteed by the app-level login gate
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
@@ -74,41 +73,33 @@ export default function GamePage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div>
-          {!player ? (
-            <NameGate onDone={() => setPlayerState(getProfile())} />
-          ) : (
-            <>
-              <Suspense
-                fallback={
-                  <div className="rounded-2xl bg-white p-8 text-center text-seven-dark/60 shadow">
-                    Loading game…
-                  </div>
-                }
-              >
-                <Game
-                  slug={game.slug}
-                  title={game.title}
-                  scoreLabel={game.scoreLabel}
-                  onScore={handleScore}
-                />
-              </Suspense>
-              {lastScore !== null && (
-                <div className="mt-4 rounded-xl bg-white p-4 text-center shadow">
-                  <p className="font-display text-2xl">
-                    {lastScore.toLocaleString()}{' '}
-                    <span className="text-base font-normal text-seven-dark/60">
-                      {game.scoreLabel}
-                    </span>
-                  </p>
-                  <p className="text-sm text-seven-dark/60">
-                    {status === 'saving' && 'Saving your score…'}
-                    {status === 'saved' && 'Posted to the leaderboard ✓'}
-                    {status === 'error' && 'Could not save — check your connection.'}
-                    {status === 'idle' && 'Score recorded.'}
-                  </p>
-                </div>
-              )}
-            </>
+          <Suspense
+            fallback={
+              <div className="rounded-2xl bg-white p-8 text-center text-seven-dark/60 shadow">
+                Loading game…
+              </div>
+            }
+          >
+            <Game
+              slug={game.slug}
+              title={game.title}
+              scoreLabel={game.scoreLabel}
+              onScore={handleScore}
+            />
+          </Suspense>
+          {lastScore !== null && (
+            <div className="mt-4 rounded-xl bg-white p-4 text-center shadow">
+              <p className="font-display text-2xl">
+                {lastScore.toLocaleString()}{' '}
+                <span className="text-base font-normal text-seven-dark/60">{game.scoreLabel}</span>
+              </p>
+              <p className="text-sm text-seven-dark/60">
+                {status === 'saving' && 'Saving your score…'}
+                {status === 'saved' && 'Posted to the leaderboard ✓'}
+                {status === 'error' && 'Could not save — check your connection.'}
+                {status === 'idle' && 'Score recorded.'}
+              </p>
+            </div>
           )}
         </div>
 
