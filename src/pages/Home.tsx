@@ -19,8 +19,8 @@ export default function Home() {
             src="/extra-mile-logo.png"
             alt="The Extra Mile — 7-Eleven Customer Service Week 2026"
             className="w-full max-w-[280px]"
-            width={1238}
-            height={1271}
+            width={623}
+            height={640}
           />
           <p className="mt-4 text-sm font-bold uppercase tracking-widest text-seven-green">
             {isEventDay ? `${DAY_LABEL[day]} · Game of the Day` : 'See you on the road'}
