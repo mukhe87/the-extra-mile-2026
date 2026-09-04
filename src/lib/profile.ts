@@ -143,8 +143,10 @@ export async function loginByPass(passInput: string): Promise<Profile | null> {
 
   const { data, error } = await supabase.rpc('get_profile_by_pass', { p_pass: pass })
   if (error) throw new Error(friendlyRpcError(error))
+  // A function returning a composite row yields an all-null object (not SQL
+  // null) when there's no match, so check for a real id, not just truthiness.
   const row = (Array.isArray(data) ? data[0] : data) as ProfileRow | null
-  if (!row) return null
+  if (!row || !row.id) return null
   const p = fromRow(row)
   store(p)
   return p
