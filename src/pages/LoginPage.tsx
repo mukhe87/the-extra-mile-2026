@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   createProfile,
-  signInByPin,
+  signInByLogin,
   redeemResetCode,
   signIn,
   normalizePin,
   normalizeResetCode,
+  normalizeUsername,
   isValidPin,
 } from '../lib/profile'
 import { setAdmin } from '../lib/admin'
@@ -26,14 +27,17 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false)
 
   // sign in
+  const [signinUser, setSigninUser] = useState('')
   const [pin, setPin] = useState('')
   // create
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
+  const [createUser, setCreateUser] = useState('')
   const [newPin, setNewPin] = useState('')
   const [confirm, setConfirm] = useState('')
   // reset redeem
   const [code, setCode] = useState('')
+  const [resetUser, setResetUser] = useState('')
   const [resetPin, setResetPin] = useState('')
   const [resetConfirm, setResetConfirm] = useState('')
   // admin
@@ -47,11 +51,12 @@ export default function LoginPage() {
   const doSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    if (!signinUser.trim()) return setError('Enter your username.')
     if (!isValidPin(pin)) return setError('Enter your 6-digit PIN.')
     setBusy(true)
     try {
-      const p = await signInByPin(pin)
-      if (!p) return setError('No account has that PIN. Check it, or create an account.')
+      const p = await signInByLogin(signinUser, pin)
+      if (!p) return setError('Username or PIN is incorrect. Check them, or create an account.')
       signIn(p)
     } catch (err) {
       setError((err as Error)?.message ?? 'Could not sign you in.')
@@ -64,11 +69,10 @@ export default function LoginPage() {
     e.preventDefault()
     setError(null)
     if (!first.trim() || !last.trim()) return setError('Enter your first and last name.')
-    if (!isValidPin(newPin)) return setError('Pick a 6-digit PIN (numbers only).')
     if (newPin !== confirm) return setError('The two PINs don’t match.')
     setBusy(true)
     try {
-      signIn(await createProfile(first, last, newPin))
+      signIn(await createProfile(first, last, createUser, newPin))
     } catch (err) {
       setError((err as Error)?.message ?? 'Could not create your account.')
     } finally {
@@ -82,7 +86,7 @@ export default function LoginPage() {
     if (resetPin !== resetConfirm) return setError('The two PINs don’t match.')
     setBusy(true)
     try {
-      signIn(await redeemResetCode(code, resetPin))
+      signIn(await redeemResetCode(code, resetUser, resetPin))
     } catch (err) {
       setError((err as Error)?.message ?? 'Could not reset your PIN.')
     } finally {
@@ -105,8 +109,9 @@ export default function LoginPage() {
       <form onSubmit={doRedeem} className="rounded-2xl bg-white p-8 shadow">
         <h2 className="mb-1 font-display text-2xl">Reset your PIN</h2>
         <p className="mb-6 text-sm text-seven-dark/70">
-          Enter the <strong>4-digit code</strong> your admin gave you, then choose a new 6-digit
-          PIN. (Codes expire 24 hours after they’re issued.)
+          Enter the <strong>4-digit code</strong> your admin gave you, then set your{' '}
+          <strong>username</strong> and a new 6-digit PIN. (Codes expire 24 hours after they’re
+          issued.)
         </p>
         <Field label="Reset code (4 digits)">
           <input
@@ -116,6 +121,15 @@ export default function LoginPage() {
             autoFocus
             className={inputCls + ' tracking-[0.5em]'}
             placeholder="1234"
+          />
+        </Field>
+        <Field label="Username">
+          <input
+            value={resetUser}
+            onChange={(e) => setResetUser(normalizeUsername(e.target.value))}
+            autoCapitalize="none"
+            className={inputCls}
+            placeholder="yourname"
           />
         </Field>
         <Field label="New 6-digit PIN">
@@ -176,13 +190,22 @@ export default function LoginPage() {
 
         {view === 'signin' && (
           <form onSubmit={doSignIn}>
-            <Field label="Your 6-digit PIN">
+            <Field label="Username">
+              <input
+                value={signinUser}
+                onChange={(e) => setSigninUser(normalizeUsername(e.target.value))}
+                autoCapitalize="none"
+                autoFocus
+                className={inputCls}
+                placeholder="yourname"
+              />
+            </Field>
+            <Field label="6-digit PIN">
               <input
                 value={pin}
                 onChange={(e) => setPin(normalizePin(e.target.value))}
                 inputMode="numeric"
-                autoFocus
-                className={inputCls + ' text-center text-lg tracking-[0.5em]'}
+                className={inputCls + ' tracking-[0.4em]'}
                 placeholder="123456"
               />
             </Field>
@@ -218,6 +241,15 @@ export default function LoginPage() {
             </Field>
             <Field label="Last name">
               <input value={last} onChange={(e) => setLast(e.target.value)} className={inputCls} placeholder="Rivera" />
+            </Field>
+            <Field label="Username">
+              <input
+                value={createUser}
+                onChange={(e) => setCreateUser(normalizeUsername(e.target.value))}
+                autoCapitalize="none"
+                className={inputCls}
+                placeholder="yourname (3–20 chars)"
+              />
             </Field>
             <Field label="6-digit PIN">
               <input

@@ -26,24 +26,26 @@ begin
   end if;
 end; $$;
 
--- Search players by name. Shows a live score count and, if a reset is pending,
--- the active 4-digit code and its expiry (so the admin can re-read it).
+-- Search players by name or username. Shows the username (so the admin can read
+-- it back to a player who forgot it), a live score count, and any active reset
+-- code + expiry.
 create or replace function public.admin_find_profiles(pw text, q text)
 returns table (
-  id uuid, first_name text, last_name text, created_at timestamptz,
+  id uuid, first_name text, last_name text, username text, created_at timestamptz,
   score_count bigint, reset_code text, reset_code_expires_at timestamptz
 )
 language plpgsql security definer set search_path = public as $$
 begin
   perform public.admin_check(pw);
   return query
-    select p.id, p.first_name, p.last_name, p.created_at,
+    select p.id, p.first_name, p.last_name, p.username, p.created_at,
       (select count(*) from public.scores s where s.profile_id = p.id),
       case when p.reset_code_expires_at > now() then p.reset_code else null end,
       case when p.reset_code_expires_at > now() then p.reset_code_expires_at else null end
     from public.profiles p
     where q is null or btrim(q) = ''
        or (p.first_name || ' ' || p.last_name) ilike '%' || btrim(q) || '%'
+       or p.username ilike '%' || btrim(q) || '%'
     order by p.created_at desc
     limit 100;
 end; $$;
