@@ -10,6 +10,7 @@ export type Profile = {
   id: string
   firstName: string
   lastName: string
+  username: string
 }
 
 // The signed-in session lives ONLY in memory — never persisted — so a refresh or
@@ -84,32 +85,47 @@ export function normalizeResetCode(input: string): string {
 export function isValidResetCode(input: string): boolean {
   return /^[0-9]{4}$/.test(input)
 }
+// A username: 3–20 chars, letters/digits/._- (the unique login handle).
+export function normalizeUsername(input: string): string {
+  return input.replace(/[^A-Za-z0-9._-]/g, '').slice(0, 20)
+}
+export function isValidUsername(input: string): boolean {
+  return /^[A-Za-z0-9._-]{3,20}$/.test(input)
+}
 
-type ProfileRow = { id: string; first_name: string; last_name: string }
+type ProfileRow = { id: string; first_name: string; last_name: string; username: string }
 const fromRow = (r: ProfileRow): Profile => ({
   id: r.id,
   firstName: r.first_name,
   lastName: r.last_name,
+  username: r.username,
 })
 const firstRow = (data: unknown): ProfileRow | null => {
   const row = (Array.isArray(data) ? data[0] : data) as ProfileRow | null
   return row && row.id ? row : null
 }
 
-/** Create an account (First + Last + unique 6-digit PIN). Returns the profile. */
-export async function createProfile(first: string, last: string, pin: string): Promise<Profile> {
+/** Create an account (First + Last + unique Username + 6-digit PIN). */
+export async function createProfile(
+  first: string,
+  last: string,
+  username: string,
+  pin: string,
+): Promise<Profile> {
   const firstName = first.trim()
   const lastName = last.trim()
+  const user = username.trim()
   if (!firstName || !lastName) throw new Error('First and last name are required.')
+  if (!isValidUsername(user)) throw new Error('Username must be 3–20 characters (letters, numbers, . _ -).')
   if (!isValidPin(pin)) throw new Error('Pick a 6-digit PIN (numbers only).')
 
   if (!supabase) {
-    // No backend (local dev): make a self-contained local profile.
-    return { id: crypto.randomUUID(), firstName, lastName }
+    return { id: crypto.randomUUID(), firstName, lastName, username: user }
   }
   const { data, error } = await supabase.rpc('create_profile', {
     p_first: firstName,
     p_last: lastName,
+    p_username: user,
     p_pin: pin,
   })
   if (error) throw new Error(friendlyRpcError(error))
@@ -118,22 +134,36 @@ export async function createProfile(first: string, last: string, pin: string): P
   return fromRow(row)
 }
 
-/** Sign in with a 6-digit PIN. Returns the profile, or null if none matches. */
-export async function signInByPin(pin: string): Promise<Profile | null> {
+/** Sign in with Username + 6-digit PIN. Returns the profile, or null. */
+export async function signInByLogin(username: string, pin: string): Promise<Profile | null> {
+  if (!username.trim()) throw new Error('Enter your username.')
   if (!isValidPin(pin)) throw new Error('Enter your 6-digit PIN.')
   if (!supabase) throw new Error('Signing in needs the live site.')
-  const { data, error } = await supabase.rpc('get_profile_by_pin', { p_pin: pin })
+  const { data, error } = await supabase.rpc('get_profile_by_login', {
+    p_username: username.trim(),
+    p_pin: pin,
+  })
   if (error) throw new Error(friendlyRpcError(error))
   const row = firstRow(data)
   return row ? fromRow(row) : null
 }
 
-/** Redeem an admin reset code and set a new 6-digit PIN. Returns the profile. */
-export async function redeemResetCode(code: string, newPin: string): Promise<Profile> {
+/** Redeem an admin reset code: set username + a new 6-digit PIN. */
+export async function redeemResetCode(
+  code: string,
+  username: string,
+  newPin: string,
+): Promise<Profile> {
   if (!isValidResetCode(code)) throw new Error('Enter the 4-digit reset code from your admin.')
+  if (!isValidUsername(username.trim()))
+    throw new Error('Username must be 3–20 characters (letters, numbers, . _ -).')
   if (!isValidPin(newPin)) throw new Error('Pick a new 6-digit PIN (numbers only).')
   if (!supabase) throw new Error('This needs the live site.')
-  const { data, error } = await supabase.rpc('redeem_reset_code', { p_code: code, p_new_pin: newPin })
+  const { data, error } = await supabase.rpc('redeem_reset_code', {
+    p_code: code,
+    p_username: username.trim(),
+    p_new_pin: newPin,
+  })
   if (error) throw new Error(friendlyRpcError(error))
   const row = firstRow(data)
   if (!row) throw new Error('That reset code is wrong or has expired. Ask your admin for a new one.')
@@ -143,8 +173,11 @@ export async function redeemResetCode(code: string, newPin: string): Promise<Pro
 // Friendlier messages for the common known states.
 function friendlyRpcError(error: { code?: string; message: string }): string {
   const code = error.code
-  if (/pin taken/i.test(error.message)) {
-    return 'That PIN is already taken. Please choose a different 6-digit PIN.'
+  if (/username taken/i.test(error.message)) {
+    return 'That username is already taken. Please choose a different one.'
+  }
+  if (/bad username/i.test(error.message)) {
+    return 'Username must be 3–20 characters (letters, numbers, . _ -).'
   }
   if (/invalid or expired code/i.test(error.message)) {
     return 'That reset code is wrong or has expired. Ask your admin for a new one.'
@@ -173,6 +206,7 @@ export type AdminProfile = {
   id: string
   firstName: string
   lastName: string
+  username: string
   createdAt: string
   scoreCount: number
   resetCode: string | null // active reset code, if a reset is pending
@@ -188,6 +222,7 @@ export async function adminFindProfiles(pw: string, query: string): Promise<Admi
     id: string
     first_name: string
     last_name: string
+    username: string
     created_at: string
     score_count: number
     reset_code: string | null
@@ -196,6 +231,7 @@ export async function adminFindProfiles(pw: string, query: string): Promise<Admi
     id: r.id,
     firstName: r.first_name,
     lastName: r.last_name,
+    username: r.username,
     createdAt: r.created_at,
     scoreCount: Number(r.score_count),
     resetCode: r.reset_code,

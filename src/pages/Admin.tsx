@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { fetchAllScores, resetScores } from '../lib/scores'
 import {
   adminFindProfiles,
@@ -22,6 +23,7 @@ const WEEK: DayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri']
 type Summary = { players: number; plays: number; games: number }
 
 export default function Admin() {
+  const navigate = useNavigate()
   const [entered, setEntered] = useState('')
   const [ok, setOk] = useState(isAdmin()) // already unlocked via the login page?
   const [error, setError] = useState<string | null>(null)
@@ -65,11 +67,23 @@ export default function Admin() {
 
   return (
     <div className="grid gap-8">
-      <header>
-        <h1 className="font-display text-3xl">Admin panel</h1>
-        <p className="text-seven-dark/70">
-          Play or preview any day’s games, download reports by day, and reset the scoreboard.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl">Admin panel</h1>
+          <p className="text-seven-dark/70">
+            Play or preview any day’s games, download reports by day, manage players, and reset the
+            scoreboard.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setAdmin(false)
+            navigate('/')
+          }}
+          className="rounded-full border-2 border-seven-dark/15 px-4 py-2 text-sm font-bold hover:border-seven-orange"
+        >
+          Log out
+        </button>
       </header>
       <SummaryCard reloadKey={reloadKey} />
       <PlayAnyGame />
@@ -388,18 +402,19 @@ function ManagePlayers({ onChange }: { onChange: () => void }) {
     <section className="rounded-2xl bg-white p-6 shadow">
       <h2 className="mb-1 font-display text-2xl">Manage players</h2>
       <p className="mb-4 text-sm text-seven-dark/70">
-        Look up a player who forgot their PIN and <strong>Reset account</strong> — that issues a
-        4-digit code (valid 24 hours) to give them; they use it on the sign-in page to set a new
-        PIN. A reset keeps <strong>all their data</strong> (scores and, later, their License Plate
-        photos) — you never see or set their PIN. <strong>Delete account</strong> removes it and all
-        its data.
+        Each player shows their <strong>@username</strong> — if they only forgot that, just read it
+        back to them (no reset needed). If they forgot their <strong>PIN</strong>,{' '}
+        <strong>Reset account</strong> issues a 4-digit code (valid 24 hours); they enter it on the
+        sign-in page to set their username + a new PIN. A reset keeps <strong>all their data</strong>{' '}
+        (scores and, later, their License Plate photos) — you never see or set their PIN.{' '}
+        <strong>Delete account</strong> removes it and all its data.
       </p>
 
       <form onSubmit={search} className="mb-4 flex flex-wrap gap-2">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or pass (blank = everyone)"
+          placeholder="Search by name or username (blank = everyone)"
           className="min-w-[16rem] flex-1 rounded-lg border-2 border-seven-dark/15 px-3 py-2 focus:border-seven-orange focus:outline-none"
         />
         <button
@@ -457,7 +472,10 @@ function PlayerRow({ player, onDelete }: { player: AdminProfile; onDelete: () =>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="font-bold">
-            {player.firstName} {player.lastName}
+            {player.firstName} {player.lastName}{' '}
+            <span className="ml-1 font-mono text-sm font-normal text-seven-green">
+              @{player.username}
+            </span>
           </p>
           <p className="text-xs text-seven-dark/55">
             {player.scoreCount} score{player.scoreCount === 1 ? '' : 's'} · joined{' '}
@@ -484,7 +502,7 @@ function PlayerRow({ player, onDelete }: { player: AdminProfile; onDelete: () =>
       {code && (
         <div className="mt-3 rounded-lg border-2 border-dashed border-seven-orange/50 bg-seven-orange/5 p-3 text-sm">
           Give {player.firstName} this reset code — it expires in 24 hours. They enter it on the
-          sign-in page under “Have a reset code?” to set a new PIN.
+          sign-in page under “Have a reset code?” to set their username + a new PIN.
           <div className="mt-1 font-display text-2xl tracking-widest text-seven-dark">{code}</div>
         </div>
       )}
