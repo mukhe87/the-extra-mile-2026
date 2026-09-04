@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { fetchLeaderboard, subscribeLeaderboard, type LeaderboardEntry } from '../lib/scores'
+import {
+  fetchLeaderboard,
+  subscribeLeaderboard,
+  displayLabels,
+  type LeaderboardEntry,
+} from '../lib/scores'
 import { supabaseReady } from '../lib/supabase'
 
 // Live leaderboard for one game. Re-fetches whenever a new score for this game
@@ -50,6 +55,8 @@ export default function Leaderboard({
     )
   }
 
+  const labels = displayLabels(entries)
+
   return (
     <div className="overflow-hidden rounded-2xl bg-white shadow">
       <div className="road-strip h-2" />
@@ -75,7 +82,7 @@ export default function Leaderboard({
         </p>
       ) : (
         <ol className="divide-y divide-seven-dark/5">
-          {entries.map((e) => {
+          {entries.map((e, i) => {
             const isMe =
               highlight &&
               (highlight.profileId && e.profileId
@@ -84,15 +91,13 @@ export default function Leaderboard({
                   e.lastName.toLowerCase() === highlight.lastName.toLowerCase())
             return (
               <li
-                key={`${e.firstName}-${e.lastName}-${e.rank}`}
+                key={`${e.profileId ?? e.firstName + '-' + e.lastName}-${e.rank}`}
                 className={`flex items-center gap-3 px-5 py-2.5 ${
                   isMe ? 'bg-seven-orange/10' : ''
                 }`}
               >
                 <span className="w-6 text-right font-display text-seven-orange">{e.rank}</span>
-                <span className="flex-1 truncate">
-                  {e.firstName} {e.lastName}
-                </span>
+                <span className="flex-1 truncate">{labels[i]}</span>
                 <span className="font-bold">
                   {e.score.toLocaleString()}{' '}
                   <span className="text-xs font-normal text-seven-dark/50">{scoreLabel}</span>

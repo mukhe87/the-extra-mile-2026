@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { fetchAllScores, overallStandings, subscribeAllScores, type OverallEntry } from '../lib/scores'
+import {
+  fetchAllScores,
+  overallStandings,
+  subscribeAllScores,
+  displayLabels,
+  type OverallEntry,
+} from '../lib/scores'
 import { supabaseReady } from '../lib/supabase'
 
 // The home-page board: overall event standings (each player's summed best score
@@ -36,6 +42,8 @@ export default function OverallLeaderboard({ limit = 10 }: { limit?: number }) {
 
   if (!supabaseReady) return null
 
+  const labels = displayLabels(rows)
+
   return (
     <div className="overflow-hidden rounded-2xl bg-white shadow">
       <div className="road-strip h-2" />
@@ -61,12 +69,10 @@ export default function OverallLeaderboard({ limit = 10 }: { limit?: number }) {
         </p>
       ) : (
         <ol className="divide-y divide-seven-dark/5">
-          {rows.map((e) => (
+          {rows.map((e, i) => (
             <li key={`${e.firstName}-${e.lastName}-${e.rank}`} className="flex items-center gap-3 px-5 py-2.5">
               <span className="w-6 text-right font-display text-seven-orange">{e.rank}</span>
-              <span className="flex-1 truncate">
-                {e.firstName} {e.lastName}
-              </span>
+              <span className="flex-1 truncate">{labels[i]}</span>
               <span className="text-xs text-seven-dark/45">{e.gamesPlayed} game{e.gamesPlayed === 1 ? '' : 's'}</span>
               <span className="w-20 text-right font-bold tabular-nums">{e.totalBest.toLocaleString()}</span>
             </li>

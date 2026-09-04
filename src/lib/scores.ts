@@ -23,6 +23,24 @@ export type LeaderboardEntry = {
   createdAt: string
 }
 
+/**
+ * Display labels that keep same-named players apart. When two distinct players
+ * share a name, the 2nd, 3rd, … get a "(2)", "(3)" suffix so viewers can tell
+ * them apart on the board (their scores are already separate via profile_id).
+ */
+export function displayLabels(
+  rows: Array<{ firstName: string; lastName: string }>,
+): string[] {
+  const seen = new Map<string, number>()
+  return rows.map((r) => {
+    const base = `${r.firstName} ${r.lastName}`.trim()
+    const key = base.toLowerCase()
+    const n = (seen.get(key) ?? 0) + 1
+    seen.set(key, n)
+    return n === 1 ? base : `${base} (${n})`
+  })
+}
+
 /** Submit a score. Returns the inserted row, or null if Supabase isn't wired. */
 export async function submitScore(
   gameSlug: string,
