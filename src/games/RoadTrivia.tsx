@@ -10,8 +10,24 @@ const MAX_PER_Q = 100
 const MIN_PER_Q = 20
 const SECONDS_PER_Q = 12
 
+// Shuffle a question's choices and remap the correct-answer index, so the right
+// answer isn't always in the same position (the source bank happens to keep it
+// near the top). Tracking the index through the shuffle stays correct even if
+// two choices share the same text.
+function shuffleChoices(question: TriviaQuestion): TriviaQuestion {
+  const order = question.choices.map((_, i) => i).sort(() => Math.random() - 0.5)
+  return {
+    ...question,
+    choices: order.map((i) => question.choices[i]),
+    answer: order.indexOf(question.answer),
+  }
+}
+
 function pickRound(): TriviaQuestion[] {
-  return [...TRIVIA].sort(() => Math.random() - 0.5).slice(0, QUESTIONS_PER_ROUND)
+  return [...TRIVIA]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, QUESTIONS_PER_ROUND)
+    .map(shuffleChoices)
 }
 
 export default function RoadTrivia({ onScore }: GameProps) {
