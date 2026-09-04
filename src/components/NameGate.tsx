@@ -3,6 +3,7 @@ import {
   createProfile,
   loginByPass,
   loginByNamePin,
+  setOwnPin,
   normalizePin,
   isValidPin,
   type Profile,
@@ -14,7 +15,11 @@ import {
 //  • pass    — returning player enters their Player Pass.
 //  • recover — lost the pass? reconnect with First + Last + PIN.
 // Blocks scoring until a profile exists.
-type Mode = 'new' | 'pass' | 'recover'
+type Mode = 'new' | 'pass' | 'recover' | 'forgotpin'
+
+// Who to contact for a PIN reset or account deletion (shown on the "Forgot PIN"
+// screen). Update the name/contact here if the administrator changes.
+const ADMIN_NAME = 'Corey Hildenbrand'
 
 export default function NameGate({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<Mode>('new')
@@ -26,6 +31,8 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<Profile | null>(null)
+  // Set after an admin reset: the player must choose a personal PIN before playing.
+  const [forcePinFor, setForcePinFor] = useState<Profile | null>(null)
 
   const firstOk = first.trim().length > 0
   const lastOk = last.trim().length > 0
@@ -58,9 +65,10 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
     if (!pass.trim()) return setError('Enter your Player Pass.')
     setBusy(true)
     try {
-      const p = await loginByPass(pass)
-      if (!p) return setError('That Player Pass didn’t match. Check it, or use “Lost your pass?”.')
-      onDone()
+      const res = await loginByPass(pass)
+      if (!res) return setError('That Player Pass didn’t match. Check it, or use “Lost your pass?”.')
+      if (res.mustSetPin) setForcePinFor(res.profile)
+      else onDone()
     } catch (err) {
       setError((err as Error)?.message ?? 'Could not sign you in.')
     } finally {
@@ -75,10 +83,11 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
     if (!firstOk || !lastOk || !pinOk) return
     setBusy(true)
     try {
-      const p = await loginByNamePin(first, last, pin)
-      if (!p)
+      const res = await loginByNamePin(first, last, pin)
+      if (!res)
         return setError('No match for that name and PIN. Double-check them, or start as a new player.')
-      onDone()
+      if (res.mustSetPin) setForcePinFor(res.profile)
+      else onDone()
     } catch (err) {
       setError((err as Error)?.message ?? 'Could not reconnect you.')
     } finally {
@@ -86,6 +95,7 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
     }
   }
 
+  if (forcePinFor) return <ForcePinReset profile={forcePinFor} onDone={onDone} />
   if (created) return <PassReveal profile={created} onContinue={onDone} />
 
   return (
@@ -179,6 +189,12 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
                 Start here
               </button>
             </span>
+            <span>
+              Forgot your PIN?{' '}
+              <button type="button" onClick={() => go('forgotpin')} className="font-bold text-seven-orange">
+                Get help
+              </button>
+            </span>
           </div>
         </form>
       )}
@@ -220,13 +236,43 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
             {busy ? 'Reconnecting…' : 'Reconnect'}
           </button>
 
-          <p className="mt-4 text-center text-sm text-seven-dark/60">
-            Have your pass, or new here?{' '}
-            <button type="button" onClick={() => go('pass')} className="font-bold text-seven-orange">
-              Back
-            </button>
-          </p>
+          <div className="mt-4 flex flex-col gap-1 text-center text-sm text-seven-dark/60">
+            <span>
+              Forgot your PIN?{' '}
+              <button type="button" onClick={() => go('forgotpin')} className="font-bold text-seven-orange">
+                Get help
+              </button>
+            </span>
+            <span>
+              Have your pass, or new here?{' '}
+              <button type="button" onClick={() => go('pass')} className="font-bold text-seven-orange">
+                Back
+              </button>
+            </span>
+          </div>
         </form>
+      )}
+
+      {mode === 'forgotpin' && (
+        <div>
+          <h2 className="mb-1 font-display text-2xl">Forgot your PIN?</h2>
+          <p className="mb-4 text-sm text-seven-dark/70">
+            For your security, PINs can’t be reset here. If you’ve forgotten your PIN — or you’d
+            like your account deleted — please reach out to the Website Administrator,{' '}
+            <strong>{ADMIN_NAME}</strong>, and he’ll take care of it for you.
+          </p>
+          <div className="mb-6 rounded-xl border-2 border-seven-orange/40 bg-seven-orange/5 p-4 text-sm text-seven-dark/80">
+            Ask {ADMIN_NAME} to <strong>reset your PIN</strong> or <strong>delete your account</strong>.
+            After a reset, the next time you sign in you’ll be asked to choose a new personal PIN.
+          </div>
+          <button
+            type="button"
+            onClick={() => go('pass')}
+            className="w-full rounded-full bg-seven-orange px-6 py-3 font-bold text-white shadow"
+          >
+            Back to sign in
+          </button>
+        </div>
       )}
     </div>
   )
@@ -357,5 +403,78 @@ function PassReveal({ profile, onContinue }: { profile: Profile; onContinue: () 
         Start playing
       </button>
     </div>
+  )
+}
+
+// Shown right after a player logs in following an admin reset: they must choose
+// a new personal PIN before continuing. Uses their current pass to authorize.
+function ForcePinReset({ profile, onDone }: { profile: Profile; onDone: () => void }) {
+  const [pin, setPin] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!isValidPin(pin)) return setError('Pick a 4-digit PIN (numbers only).')
+    if (pin !== confirm) return setError('The two PINs don’t match.')
+    setBusy(true)
+    try {
+      await setOwnPin(profile.passCode, pin)
+      onDone()
+    } catch (err) {
+      setError((err as Error)?.message ?? 'Could not set your PIN.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="mx-auto max-w-md rounded-2xl bg-white p-8 shadow">
+      <h2 className="mb-1 font-display text-2xl">Set a new PIN, {profile.firstName}</h2>
+      <p className="mb-6 text-sm text-seven-dark/70">
+        Your account was reset. For your security, please choose a new{' '}
+        <strong>4-digit PIN</strong> that’s personal to you — you’ll use it to get back in if you
+        ever lose your Player Pass.
+      </p>
+
+      <label className="mb-3 block">
+        <span className="mb-1 block text-sm font-bold">New PIN</span>
+        <input
+          value={pin}
+          onChange={(e) => setPin(normalizePin(e.target.value))}
+          disabled={busy}
+          inputMode="numeric"
+          autoComplete="off"
+          autoFocus
+          className="w-full rounded-lg border-2 border-seven-dark/15 px-3 py-2 font-mono tracking-[0.5em] focus:border-seven-orange focus:outline-none disabled:opacity-60"
+          placeholder="1234"
+        />
+      </label>
+
+      <label className="mb-6 block">
+        <span className="mb-1 block text-sm font-bold">Confirm PIN</span>
+        <input
+          value={confirm}
+          onChange={(e) => setConfirm(normalizePin(e.target.value))}
+          disabled={busy}
+          inputMode="numeric"
+          autoComplete="off"
+          className="w-full rounded-lg border-2 border-seven-dark/15 px-3 py-2 font-mono tracking-[0.5em] focus:border-seven-orange focus:outline-none disabled:opacity-60"
+          placeholder="1234"
+        />
+      </label>
+
+      {error && <p className="mb-4 text-sm text-seven-red">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={busy}
+        className="w-full rounded-full bg-seven-orange px-6 py-3 font-bold text-white shadow disabled:opacity-60"
+      >
+        {busy ? 'Saving…' : 'Save my PIN & play'}
+      </button>
+    </form>
   )
 }

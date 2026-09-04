@@ -24,6 +24,7 @@ create table if not exists public.profiles (
   first_name text not null check (char_length(first_name) between 1 and 60),
   last_name  text not null check (char_length(last_name)  between 1 and 60),
   pin        text check (pin ~ '^[0-9]{4}$'),
+  must_set_pin boolean not null default false, -- set by an admin reset; cleared when the player picks a personal PIN
   created_at timestamptz not null default now()
 );
 
@@ -105,13 +106,14 @@ begin
 end; $$;
 
 -- Resolve a profile by pass code (case-insensitive). Returns 0 rows if no match.
--- Never returns the PIN.
+-- Never returns the PIN. must_set_pin tells the app to force a personal PIN
+-- after an admin reset.
 create or replace function public.get_profile_by_pass(p_pass text)
-returns table (id uuid, pass_code text, first_name text, last_name text)
+returns table (id uuid, pass_code text, first_name text, last_name text, must_set_pin boolean)
 language plpgsql security definer set search_path = public as $$
 begin
   return query
-    select pr.id, pr.pass_code, pr.first_name, pr.last_name
+    select pr.id, pr.pass_code, pr.first_name, pr.last_name, pr.must_set_pin
     from public.profiles pr
     where upper(btrim(pr.pass_code)) = upper(btrim(p_pass));
 end; $$;
@@ -119,17 +121,37 @@ end; $$;
 -- Resolve a profile by First + Last + PIN — the recovery path when a player has
 -- lost their pass. Returns 0 rows if no match. Never returns the PIN.
 create or replace function public.get_profile_by_name_pin(p_first text, p_last text, p_pin text)
-returns table (id uuid, pass_code text, first_name text, last_name text)
+returns table (id uuid, pass_code text, first_name text, last_name text, must_set_pin boolean)
 language plpgsql security definer set search_path = public as $$
 begin
   return query
-    select pr.id, pr.pass_code, pr.first_name, pr.last_name
+    select pr.id, pr.pass_code, pr.first_name, pr.last_name, pr.must_set_pin
     from public.profiles pr
     where lower(pr.first_name) = lower(btrim(p_first))
       and lower(pr.last_name)  = lower(btrim(p_last))
       and pr.pin = p_pin;
 end; $$;
 
+-- Player self-service: set a new PIN by presenting the current pass code (which
+-- they just logged in with). Clears must_set_pin. Keeps name+PIN uniqueness.
+create or replace function public.set_own_pin(p_pass text, p_new_pin text)
+returns void language plpgsql security definer set search_path = public as $$
+declare pid uuid; f text; l text;
+begin
+  if p_new_pin is null or p_new_pin !~ '^[0-9]{4}$' then raise exception 'PIN must be 4 digits.'; end if;
+  select id, first_name, last_name into pid, f, l
+  from public.profiles where upper(btrim(pass_code)) = upper(btrim(p_pass));
+  if pid is null then raise exception 'unauthorized'; end if;
+  if exists (
+    select 1 from public.profiles p2
+    where p2.id <> pid and lower(p2.first_name) = lower(f) and lower(p2.last_name) = lower(l) and p2.pin = p_new_pin
+  ) then
+    raise exception 'name+pin taken';
+  end if;
+  update public.profiles set pin = p_new_pin, must_set_pin = false where id = pid;
+end; $$;
+
 grant execute on function public.create_profile(text, text, text) to anon;
 grant execute on function public.get_profile_by_pass(text) to anon;
 grant execute on function public.get_profile_by_name_pin(text, text, text) to anon;
+grant execute on function public.set_own_pin(text, text) to anon;
