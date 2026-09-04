@@ -15,7 +15,11 @@ import {
 //  • pass    — returning player enters their Player Pass.
 //  • recover — lost the pass? reconnect with First + Last + PIN.
 // Blocks scoring until a profile exists.
-type Mode = 'new' | 'pass' | 'recover'
+type Mode = 'new' | 'pass' | 'recover' | 'forgotpin'
+
+// Who to contact for a PIN reset or account deletion (shown on the "Forgot PIN"
+// screen). Update the name/contact here if the administrator changes.
+const ADMIN_NAME = 'Corey Hildenbrand'
 
 export default function NameGate({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<Mode>('new')
@@ -185,6 +189,12 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
                 Start here
               </button>
             </span>
+            <span>
+              Forgot your PIN?{' '}
+              <button type="button" onClick={() => go('forgotpin')} className="font-bold text-seven-orange">
+                Get help
+              </button>
+            </span>
           </div>
         </form>
       )}
@@ -226,13 +236,43 @@ export default function NameGate({ onDone }: { onDone: () => void }) {
             {busy ? 'Reconnecting…' : 'Reconnect'}
           </button>
 
-          <p className="mt-4 text-center text-sm text-seven-dark/60">
-            Have your pass, or new here?{' '}
-            <button type="button" onClick={() => go('pass')} className="font-bold text-seven-orange">
-              Back
-            </button>
-          </p>
+          <div className="mt-4 flex flex-col gap-1 text-center text-sm text-seven-dark/60">
+            <span>
+              Forgot your PIN?{' '}
+              <button type="button" onClick={() => go('forgotpin')} className="font-bold text-seven-orange">
+                Get help
+              </button>
+            </span>
+            <span>
+              Have your pass, or new here?{' '}
+              <button type="button" onClick={() => go('pass')} className="font-bold text-seven-orange">
+                Back
+              </button>
+            </span>
+          </div>
         </form>
+      )}
+
+      {mode === 'forgotpin' && (
+        <div>
+          <h2 className="mb-1 font-display text-2xl">Forgot your PIN?</h2>
+          <p className="mb-4 text-sm text-seven-dark/70">
+            For your security, PINs can’t be reset here. If you’ve forgotten your PIN — or you’d
+            like your account deleted — please reach out to the Website Administrator,{' '}
+            <strong>{ADMIN_NAME}</strong>, and he’ll take care of it for you.
+          </p>
+          <div className="mb-6 rounded-xl border-2 border-seven-orange/40 bg-seven-orange/5 p-4 text-sm text-seven-dark/80">
+            Ask {ADMIN_NAME} to <strong>reset your PIN</strong> or <strong>delete your account</strong>.
+            After a reset, the next time you sign in you’ll be asked to choose a new personal PIN.
+          </div>
+          <button
+            type="button"
+            onClick={() => go('pass')}
+            className="w-full rounded-full bg-seven-orange px-6 py-3 font-bold text-white shadow"
+          >
+            Back to sign in
+          </button>
+        </div>
       )}
     </div>
   )
