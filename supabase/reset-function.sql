@@ -49,7 +49,9 @@ begin
   end if;
 
   if game is null or game = '' then
-    delete from public.scores;
+    -- `where true` clears every row while still satisfying Supabase's
+    -- safe-update rule, which refuses a DELETE with no WHERE clause.
+    delete from public.scores where true;
   else
     delete from public.scores where game_slug = game;
   end if;
