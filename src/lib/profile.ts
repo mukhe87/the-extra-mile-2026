@@ -105,13 +105,23 @@ function genLocalCode(): string {
   return `EXTRA-${c}`
 }
 
-type ProfileRow = { id: string; pass_code: string; first_name: string; last_name: string }
+type ProfileRow = {
+  id: string
+  pass_code: string
+  first_name: string
+  last_name: string
+  must_set_pin?: boolean
+}
 const fromRow = (r: ProfileRow): Profile => ({
   id: r.id,
   passCode: r.pass_code,
   firstName: r.first_name,
   lastName: r.last_name,
 })
+
+// Login result: the profile plus whether an admin reset means the player must
+// now choose a personal PIN before playing.
+export type LoginResult = { profile: Profile; mustSetPin: boolean }
 
 /**
  * Create a new profile. The player picks a 4-digit PIN; First + Last + PIN must
@@ -149,7 +159,7 @@ export async function createProfile(first: string, last: string, pin: string): P
  * Re-attach to an existing profile by its pass code. Returns the profile, or
  * null if the code doesn't match one. Requires the live site (needs the server).
  */
-export async function loginByPass(passInput: string): Promise<Profile | null> {
+export async function loginByPass(passInput: string): Promise<LoginResult | null> {
   const pass = normalizePass(passInput)
   if (!pass) throw new Error('Enter your Player Pass.')
 
@@ -165,7 +175,7 @@ export async function loginByPass(passInput: string): Promise<Profile | null> {
   if (!row || !row.id) return null
   const p = fromRow(row)
   store(p)
-  return p
+  return { profile: p, mustSetPin: !!row.must_set_pin }
 }
 
 /**
@@ -177,7 +187,7 @@ export async function loginByNamePin(
   first: string,
   last: string,
   pin: string,
-): Promise<Profile | null> {
+): Promise<LoginResult | null> {
   const firstName = first.trim()
   const lastName = last.trim()
   if (!firstName || !lastName) throw new Error('Enter your first and last name.')
@@ -197,7 +207,18 @@ export async function loginByNamePin(
   if (!row || !row.id) return null
   const p = fromRow(row)
   store(p)
-  return p
+  return { profile: p, mustSetPin: !!row.must_set_pin }
+}
+
+/**
+ * Player self-service: set a new personal PIN by presenting the current pass
+ * code. Used right after an admin reset to clear the "must set PIN" flag.
+ */
+export async function setOwnPin(passCode: string, newPin: string): Promise<void> {
+  if (!isValidPin(newPin)) throw new Error('Pick a 4-digit PIN (numbers only).')
+  if (!supabase) throw new Error('This needs the live site.')
+  const { error } = await supabase.rpc('set_own_pin', { p_pass: passCode, p_new_pin: newPin })
+  if (error) throw new Error(friendlyRpcError(error))
 }
 
 // Friendlier messages for the common "not set up yet" and known states,

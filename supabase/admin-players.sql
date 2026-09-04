@@ -62,7 +62,7 @@ begin
     attempts := attempts + 1;
     new_code := public.gen_pass_code();
     begin
-      update public.profiles set pass_code = new_code where id = p_id;
+      update public.profiles set pass_code = new_code, must_set_pin = true where id = p_id;
       if not found then raise exception 'Player not found.'; end if;
       return new_code;
     exception when unique_violation then
@@ -92,7 +92,7 @@ begin
   ) then
     raise exception 'name+pin taken';
   end if;
-  update public.profiles set pin = new_pin where id = p_id;
+  update public.profiles set pin = new_pin, must_set_pin = true where id = p_id;
 end; $$;
 
 -- Delete a player's account AND all their data. Returns the number of score
