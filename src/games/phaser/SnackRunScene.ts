@@ -1,9 +1,9 @@
 import Phaser from 'phaser'
 import { BRAND } from './PhaserMount'
 
-// Snack Run — a maze-muncher. Steer the cart around the store aisles, grab every
-// Slurpee cup, and avoid the roaming spills. Clear the board for a big bonus;
-// getting caught ends the run. Grid-based movement on a fixed tick.
+// Car Chaser — a maze-muncher. Steer around the lot maze, grab every pickup, and
+// avoid the roaming chasers. Clear the board for a big bonus; getting caught
+// ends the run. Grid-based movement on a fixed tick.
 type Cell = { x: number; y: number }
 
 // 0 = open, 1 = wall/aisle. 15 cols x 15 rows.
@@ -74,7 +74,7 @@ export default class SnackRunScene extends Phaser.Scene {
 
     this.gfx = this.add.graphics()
     this.scoreText = this.add
-      .text(8, 4, 'Cups: 0', { fontFamily: 'Arial Black', fontSize: '16px', color: '#ffffff' })
+      .text(8, 4, 'Pickups: 0', { fontFamily: 'Arial Black', fontSize: '16px', color: '#ffffff' })
       .setDepth(10)
 
     const kb = this.input.keyboard!
@@ -123,7 +123,7 @@ export default class SnackRunScene extends Phaser.Scene {
         if (this.pellets.has(key)) {
           this.pellets.delete(key)
           this.score += 10
-          this.scoreText.setText(`Cups: ${this.score / 10} / ${this.total}`)
+          this.scoreText.setText(`Pickups: ${this.score / 10} / ${this.total}`)
           if (this.pellets.size === 0) return this.win()
         }
       }
