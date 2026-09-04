@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useProfile, clearProfile, fullName, type Profile } from '../lib/profile'
 
 // The branded shell: Extra Mile header on a road strip, content, footer.
@@ -47,31 +47,11 @@ export default function Layout({ children }: { children: ReactNode }) {
   )
 }
 
-// Header badge: shows the signed-in player, their Player Pass (tap to copy so
-// they can reuse it on another device), and a "Not you?" sign-out.
+// Header badge: shows the signed-in player and a "Sign out" button.
 function PlayerBadge({ player }: { player: Profile }) {
-  const [copied, setCopied] = useState(false)
-  const copyPass = async () => {
-    try {
-      await navigator.clipboard.writeText(player.passCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard blocked — nothing to do */
-    }
-  }
   return (
     <>
-      <div className="hidden text-right leading-tight sm:block">
-        <span className="block text-white/85">{fullName(player)}</span>
-        <button
-          onClick={copyPass}
-          title="Copy your Player Pass"
-          className="font-mono text-[11px] tracking-wider text-seven-orange hover:text-white"
-        >
-          {copied ? 'Copied ✓' : player.passCode}
-        </button>
-      </div>
+      <span className="hidden text-white/85 sm:inline">{fullName(player)}</span>
       <button
         onClick={() => {
           clearProfile()

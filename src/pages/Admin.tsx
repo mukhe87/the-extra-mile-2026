@@ -2,16 +2,14 @@ import { useEffect, useState } from 'react'
 import { fetchAllScores, resetScores } from '../lib/scores'
 import {
   adminFindProfiles,
-  adminResetPass,
-  adminSetPin,
+  adminResetAccount,
   adminDeleteProfile,
-  normalizePin,
   type AdminProfile,
 } from '../lib/profile'
 import { downloadDayReport, downloadFullReport, downloadBackup } from '../lib/exporting'
 import { GAMES } from '../games/registry'
 import { SCHEDULE, DAY_LABEL, type DayKey } from '../lib/schedule'
-import { setAdmin } from '../lib/admin'
+import { setAdmin, isAdmin } from '../lib/admin'
 import GameCard from '../components/GameCard'
 
 // A single shared password gates this page. This is a light gate appropriate to
@@ -25,7 +23,7 @@ type Summary = { players: number; plays: number; games: number }
 
 export default function Admin() {
   const [entered, setEntered] = useState('')
-  const [ok, setOk] = useState(false)
+  const [ok, setOk] = useState(isAdmin()) // already unlocked via the login page?
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -390,9 +388,11 @@ function ManagePlayers({ onChange }: { onChange: () => void }) {
     <section className="rounded-2xl bg-white p-6 shadow">
       <h2 className="mb-1 font-display text-2xl">Manage players</h2>
       <p className="mb-4 text-sm text-seven-dark/70">
-        Look up a player to help them back in if they forget their PIN or Player Pass — issuing a
-        new pass or PIN keeps <strong>all their data</strong> (scores and, later, their License
-        Plate photos). Deleting an account removes it and all its data.
+        Look up a player who forgot their PIN and <strong>Reset account</strong> — that issues a
+        4-digit code (valid 24 hours) to give them; they use it on the sign-in page to set a new
+        PIN. A reset keeps <strong>all their data</strong> (scores and, later, their License Plate
+        photos) — you never see or set their PIN. <strong>Delete account</strong> removes it and all
+        its data.
       </p>
 
       <form onSubmit={search} className="mb-4 flex flex-wrap gap-2">
@@ -436,39 +436,19 @@ function ManagePlayers({ onChange }: { onChange: () => void }) {
 }
 
 function PlayerRow({ player, onDelete }: { player: AdminProfile; onDelete: () => void }) {
-  const [pass, setPass] = useState(player.passCode)
-  const [pin, setPin] = useState('')
-  const [busy, setBusy] = useState<'pass' | 'pin' | null>(null)
-  const [note, setNote] = useState<string | null>(null)
+  const [code, setCode] = useState<string | null>(player.resetCode)
+  const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const newPass = async () => {
-    setBusy('pass')
+  const resetAccount = async () => {
+    setBusy(true)
     setErr(null)
-    setNote(null)
     try {
-      const code = await adminResetPass(ADMIN_PASSWORD ?? '', player.id)
-      setPass(code)
-      setNote(`New Player Pass: ${code} — give this to ${player.firstName}.`)
+      setCode(await adminResetAccount(ADMIN_PASSWORD ?? '', player.id))
     } catch (e) {
-      setErr((e as Error)?.message ?? 'Could not issue a new pass.')
+      setErr((e as Error)?.message ?? 'Could not reset the account.')
     } finally {
-      setBusy(null)
-    }
-  }
-
-  const savePin = async () => {
-    setBusy('pin')
-    setErr(null)
-    setNote(null)
-    try {
-      await adminSetPin(ADMIN_PASSWORD ?? '', player.id, pin)
-      setNote(`PIN updated to ${pin} — give this to ${player.firstName}.`)
-      setPin('')
-    } catch (e) {
-      setErr((e as Error)?.message ?? 'Could not update the PIN.')
-    } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
 
@@ -480,45 +460,34 @@ function PlayerRow({ player, onDelete }: { player: AdminProfile; onDelete: () =>
             {player.firstName} {player.lastName}
           </p>
           <p className="text-xs text-seven-dark/55">
-            Pass <span className="font-mono">{pass}</span> · {player.scoreCount} score
-            {player.scoreCount === 1 ? '' : 's'} · joined{' '}
+            {player.scoreCount} score{player.scoreCount === 1 ? '' : 's'} · joined{' '}
             {new Date(player.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <button
-          onClick={onDelete}
-          className="rounded-full border-2 border-seven-red/40 px-3 py-1.5 text-sm font-bold text-seven-red hover:bg-seven-red/5"
-        >
-          Delete account
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={resetAccount}
+            disabled={busy}
+            className="rounded-full bg-seven-green px-4 py-1.5 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {busy ? '…' : 'Reset account'}
+          </button>
+          <button
+            onClick={onDelete}
+            className="rounded-full border-2 border-seven-red/40 px-3 py-1.5 text-sm font-bold text-seven-red hover:bg-seven-red/5"
+          >
+            Delete account
+          </button>
+        </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          onClick={newPass}
-          disabled={busy !== null}
-          className="rounded-full bg-seven-green px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-        >
-          {busy === 'pass' ? '…' : 'New Player Pass'}
-        </button>
-        <span className="mx-1 h-5 w-px bg-seven-dark/10" />
-        <input
-          value={pin}
-          onChange={(e) => setPin(normalizePin(e.target.value))}
-          inputMode="numeric"
-          placeholder="New PIN"
-          className="w-24 rounded-lg border-2 border-seven-dark/15 px-3 py-2 font-mono tracking-widest focus:border-seven-orange focus:outline-none"
-        />
-        <button
-          onClick={savePin}
-          disabled={busy !== null || pin.length !== 4}
-          className="rounded-full bg-seven-green px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-        >
-          {busy === 'pin' ? '…' : 'Reset PIN'}
-        </button>
-      </div>
-
-      {note && <p className="mt-2 text-sm font-bold text-seven-green">{note}</p>}
+      {code && (
+        <div className="mt-3 rounded-lg border-2 border-dashed border-seven-orange/50 bg-seven-orange/5 p-3 text-sm">
+          Give {player.firstName} this reset code — it expires in 24 hours. They enter it on the
+          sign-in page under “Have a reset code?” to set a new PIN.
+          <div className="mt-1 font-display text-2xl tracking-widest text-seven-dark">{code}</div>
+        </div>
+      )}
       {err && <p className="mt-2 text-sm text-seven-red">{err}</p>}
     </li>
   )

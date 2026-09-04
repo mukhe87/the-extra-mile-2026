@@ -1,22 +1,18 @@
 -- The Extra Mile — Admin player management.
--- Run this once in the Supabase SQL editor, after profiles.sql (and the
--- reset-function.sql that creates app_config).
+-- Run once in the Supabase SQL editor, after profiles.sql and reset-function.sql
+-- (which creates app_config). Every function is gated by the admin password in
+-- app_config.reset_password and runs SECURITY DEFINER, so the anon key can call
+-- them only with the correct password.
 --
--- Lets the admin panel help players who are locked out and remove accounts.
--- Every function is gated by the admin password stored in app_config
--- (reset_password) — the same gate as reset_scores — and runs SECURITY DEFINER
--- so the public (anon) key can call them ONLY with the correct password.
---
---   • admin_find_profiles  — search players by name or pass (to find the person)
---   • admin_reset_pass     — issue a NEW Player Pass (keeps all their data)
---   • admin_set_pin        — set a NEW 4-digit PIN (keeps all their data)
+--   • admin_find_profiles  — search players by name (with score count + any
+--                            active reset code)
+--   • admin_reset_account  — issue a 4-digit reset code (valid 24h) for a player
+--                            who forgot their PIN; keeps ALL their data
 --   • admin_delete_profile — delete the account AND all its data
 --
--- "Reset" only changes credentials; the profile id never changes, so scores
--- (and future QR-hunt photos/finds keyed to profile_id) stay intact. Only
--- admin_delete_profile removes data.
+-- The admin never sees or sets a player's PIN. A reset only issues a code the
+-- player uses to set their own new PIN (redeem_reset_code in profiles.sql).
 
--- Password gate shared by the admin functions below.
 create or replace function public.admin_check(pw text)
 returns void language plpgsql security definer set search_path = public as $$
 declare expected text;
@@ -30,73 +26,49 @@ begin
   end if;
 end; $$;
 
--- Search players (name or pass code, case-insensitive). Returns each player's
--- pass code and a live score count so the admin can identify the right person
--- (handy when two people share a name). Never returns the PIN.
+-- Search players by name. Shows a live score count and, if a reset is pending,
+-- the active 4-digit code and its expiry (so the admin can re-read it).
 create or replace function public.admin_find_profiles(pw text, q text)
 returns table (
-  id uuid, first_name text, last_name text, pass_code text,
-  created_at timestamptz, score_count bigint
+  id uuid, first_name text, last_name text, created_at timestamptz,
+  score_count bigint, reset_code text, reset_code_expires_at timestamptz
 )
 language plpgsql security definer set search_path = public as $$
 begin
   perform public.admin_check(pw);
   return query
-    select p.id, p.first_name, p.last_name, p.pass_code, p.created_at,
-           (select count(*) from public.scores s where s.profile_id = p.id)
+    select p.id, p.first_name, p.last_name, p.created_at,
+      (select count(*) from public.scores s where s.profile_id = p.id),
+      case when p.reset_code_expires_at > now() then p.reset_code else null end,
+      case when p.reset_code_expires_at > now() then p.reset_code_expires_at else null end
     from public.profiles p
     where q is null or btrim(q) = ''
        or (p.first_name || ' ' || p.last_name) ilike '%' || btrim(q) || '%'
-       or p.pass_code ilike '%' || btrim(q) || '%'
     order by p.created_at desc
     limit 100;
 end; $$;
 
--- Issue a new Player Pass for a player who lost theirs. Data untouched.
-create or replace function public.admin_reset_pass(pw text, p_id uuid)
+-- Reset an account: generate a 4-digit code (unique among active codes), valid
+-- 24 hours. Does NOT change the PIN or delete any data.
+create or replace function public.admin_reset_account(pw text, p_id uuid)
 returns text language plpgsql security definer set search_path = public as $$
-declare new_code text; attempts int := 0;
+declare code text;
 begin
   perform public.admin_check(pw);
   loop
-    attempts := attempts + 1;
-    new_code := public.gen_pass_code();
-    begin
-      update public.profiles set pass_code = new_code, must_set_pin = true where id = p_id;
-      if not found then raise exception 'Player not found.'; end if;
-      return new_code;
-    exception when unique_violation then
-      if attempts >= 8 then raise; end if;
-    end;
+    code := lpad((floor(random() * 10000))::int::text, 4, '0');
+    exit when not exists (
+      select 1 from public.profiles where reset_code = code and reset_code_expires_at > now()
+    );
   end loop;
+  update public.profiles
+    set reset_code = code, reset_code_expires_at = now() + interval '24 hours'
+    where id = p_id;
+  if not found then raise exception 'Player not found.'; end if;
+  return code;
 end; $$;
 
--- Set a new PIN for a player who forgot theirs. Data untouched. Keeps the
--- name+PIN uniqueness (won't collide with a same-named player).
-create or replace function public.admin_set_pin(pw text, p_id uuid, new_pin text)
-returns void language plpgsql security definer set search_path = public as $$
-declare f text; l text;
-begin
-  perform public.admin_check(pw);
-  if new_pin is null or new_pin !~ '^[0-9]{4}$' then
-    raise exception 'PIN must be 4 digits.';
-  end if;
-  select first_name, last_name into f, l from public.profiles where id = p_id;
-  if f is null then raise exception 'Player not found.'; end if;
-  if exists (
-    select 1 from public.profiles p2
-    where p2.id <> p_id
-      and lower(p2.first_name) = lower(f)
-      and lower(p2.last_name)  = lower(l)
-      and p2.pin = new_pin
-  ) then
-    raise exception 'name+pin taken';
-  end if;
-  update public.profiles set pin = new_pin, must_set_pin = true where id = p_id;
-end; $$;
-
--- Delete a player's account AND all their data. Returns the number of score
--- rows removed. (When the QR hunt lands, add its per-profile deletes here.)
+-- Delete a player's account AND all their data. Returns score rows removed.
 create or replace function public.admin_delete_profile(pw text, p_id uuid)
 returns integer language plpgsql security definer set search_path = public as $$
 declare n integer;
@@ -109,6 +81,5 @@ begin
 end; $$;
 
 grant execute on function public.admin_find_profiles(text, text) to anon;
-grant execute on function public.admin_reset_pass(text, uuid) to anon;
-grant execute on function public.admin_set_pin(text, uuid, text) to anon;
+grant execute on function public.admin_reset_account(text, uuid) to anon;
 grant execute on function public.admin_delete_profile(text, uuid) to anon;
