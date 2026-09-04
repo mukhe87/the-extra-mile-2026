@@ -75,11 +75,11 @@ function PlayerBadge({ player }: { player: Profile }) {
       <button
         onClick={() => {
           clearProfile()
-          location.reload()
+          location.assign('/')
         }}
         className="rounded-full border border-white/30 px-3 py-1 hover:bg-white/10"
       >
-        Not you?
+        Sign out
       </button>
     </>
   )
