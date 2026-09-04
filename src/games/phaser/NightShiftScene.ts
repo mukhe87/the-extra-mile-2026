@@ -1,9 +1,9 @@
 import Phaser from 'phaser'
 import { BRAND, rectTexture } from './PhaserMount'
 
-// Night Shift Defender — a descending-formation shooter. Defend the store from
-// a wave that marches side to side and steps down. Clear the wave for the next,
-// faster one. If the wave reaches the bottom, the shift is over. Score = each
+// Truck Defender — a descending-formation shooter. Defend the depot from a
+// convoy that marches side to side and steps down. Clear the wave for the next,
+// faster one. If the convoy reaches the bottom, it breaks through. Score = each
 // enemy cleared * 15, plus a bonus per wave cleared.
 export default class NightShiftScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Image
@@ -133,7 +133,7 @@ export default class NightShiftScene extends Phaser.Scene {
     this.alive = false
     this.physics.pause()
     this.add
-      .text(this.w / 2, this.h / 2, `Shift over\n${this.score} points`, {
+      .text(this.w / 2, this.h / 2, `Broke through!\n${this.score} points`, {
         fontFamily: 'Arial Black',
         fontSize: '28px',
         color: '#ffffff',

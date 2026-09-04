@@ -77,8 +77,8 @@ export const GAMES: Record<string, GameMeta> = {
   },
   muncher: {
     slug: 'muncher',
-    title: 'Snack Run',
-    blurb: 'Clear the aisle maze of Slurpee cups without getting cornered.',
+    title: 'Car Chaser',
+    blurb: 'Chase down every pickup around the lot maze while dodging the cars on your tail.',
     mode: 'leaderboard',
     scoreLabel: 'points',
     built: true,
@@ -113,8 +113,8 @@ export const GAMES: Record<string, GameMeta> = {
   },
   'space-shooter': {
     slug: 'space-shooter',
-    title: 'Night Shift Defender',
-    blurb: 'Defend the store through waves — descending fixed-shooter.',
+    title: 'Truck Defender',
+    blurb: 'Defend the depot from a descending convoy — clear each wave before it breaks through.',
     mode: 'leaderboard',
     scoreLabel: 'points',
     built: true,
