@@ -1,48 +1,30 @@
--- The Extra Mile — Player Profiles ("Player Pass" + recovery PIN).
--- Run this once in the Supabase SQL editor, after schema.sql.
--- (If profiles already exist from an earlier version, run
---  supabase/profiles-pin-migration.sql instead — it upgrades in place.)
---
--- Design: a lightweight identity so a player's scores (and, later, the QR hunt
--- collection and escape-room progress) tie to one person across days and
--- devices — with no passwords and no PII beyond the first/last name they give.
--- Each profile has:
---   • a short, friendly "Player Pass" (e.g. EXTRA-4F7Q) for one-tap re-attach;
---   • a self-chosen 4-digit PIN. First + Last + PIN is unique, which does two
---     jobs: it lets a player who LOST their pass reconnect with name + PIN, and
---     it keeps two people who share a name distinct (their data never mixes).
---
--- Security: the profiles table has RLS on and NO anon policies, so the public
--- (anon) key cannot read or list it directly. All access goes through the
--- SECURITY DEFINER functions below, and those NEVER return the PIN. You can
--- create a profile, resolve one by a pass code you already hold, or resolve one
--- by name + PIN — but you cannot dump the table or read anyone's PIN.
+-- The Extra Mile — upgrade existing Player Profiles to add the recovery PIN.
+-- Run this ONCE in the Supabase SQL editor IF you already ran the first
+-- profiles.sql (i.e. the profiles table already exists). It adds the 4-digit
+-- PIN, the name+PIN uniqueness, and name+PIN recovery — and stops the RPCs from
+-- ever returning the PIN. Safe to run on an empty or populated profiles table;
+-- existing rows (if any) get a null PIN until those players set one.
 
-create table if not exists public.profiles (
-  id uuid primary key default gen_random_uuid(),
-  pass_code  text not null unique,
-  first_name text not null check (char_length(first_name) between 1 and 60),
-  last_name  text not null check (char_length(last_name)  between 1 and 60),
-  pin        text check (pin ~ '^[0-9]{4}$'),
-  created_at timestamptz not null default now()
-);
+-- 1) Add the PIN column + format check (null allowed for pre-existing rows).
+alter table public.profiles add column if not exists pin text;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'profiles_pin_format'
+  ) then
+    alter table public.profiles
+      add constraint profiles_pin_format check (pin is null or pin ~ '^[0-9]{4}$');
+  end if;
+end $$;
 
-alter table public.profiles enable row level security;
--- Intentionally no policies: only the SECURITY DEFINER RPCs below touch this table.
-
--- One person = one (first, last, PIN). Powers both name+PIN recovery and
--- same-name disambiguation.
+-- 2) First + Last + PIN is unique (powers recovery + same-name disambiguation).
 create unique index if not exists profiles_name_pin_key
   on public.profiles (lower(first_name), lower(last_name), pin);
 
--- Link scores to a profile (nullable, so older/nameless rows still work). If a
--- profile is ever deleted, its scores keep their names and just lose the link.
-alter table public.scores
-  add column if not exists profile_id uuid references public.profiles(id) on delete set null;
-create index if not exists scores_profile_id_idx on public.scores (profile_id);
+-- 3) Replace the functions. A return-type change requires DROP first.
+drop function if exists public.create_profile(text, text);
+drop function if exists public.get_profile_by_pass(text);
 
--- A short Player Pass code: EXTRA- + 4 chars from an unambiguous alphabet
--- (no 0/O/1/I/L, so it's easy to read off a screen and type on a phone).
 create or replace function public.gen_pass_code()
 returns text language plpgsql as $$
 declare
@@ -56,9 +38,6 @@ begin
   return code;
 end; $$;
 
--- Create a profile with a chosen 4-digit PIN. Enforces unique (first,last,PIN);
--- generates a unique pass code (retries on the rare collision). Returns the
--- profile WITHOUT the PIN.
 create or replace function public.create_profile(p_first text, p_last text, p_pin text)
 returns table (id uuid, pass_code text, first_name text, last_name text)
 language plpgsql security definer set search_path = public as $$
@@ -91,7 +70,6 @@ begin
         from public.profiles pr where pr.pass_code = new_code;
       return;
     exception when unique_violation then
-      -- Distinguish a name+PIN race from a pass-code collision.
       if exists (
         select 1 from public.profiles pr
         where lower(pr.first_name) = lower(f) and lower(pr.last_name) = lower(l) and pr.pin = p_pin
@@ -99,13 +77,10 @@ begin
         raise exception 'name+pin taken';
       end if;
       if attempts >= 8 then raise; end if;
-      -- otherwise loop and try a fresh pass code
     end;
   end loop;
 end; $$;
 
--- Resolve a profile by pass code (case-insensitive). Returns 0 rows if no match.
--- Never returns the PIN.
 create or replace function public.get_profile_by_pass(p_pass text)
 returns table (id uuid, pass_code text, first_name text, last_name text)
 language plpgsql security definer set search_path = public as $$
@@ -116,8 +91,6 @@ begin
     where upper(btrim(pr.pass_code)) = upper(btrim(p_pass));
 end; $$;
 
--- Resolve a profile by First + Last + PIN — the recovery path when a player has
--- lost their pass. Returns 0 rows if no match. Never returns the PIN.
 create or replace function public.get_profile_by_name_pin(p_first text, p_last text, p_pin text)
 returns table (id uuid, pass_code text, first_name text, last_name text)
 language plpgsql security definer set search_path = public as $$

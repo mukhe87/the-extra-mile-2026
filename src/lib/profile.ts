@@ -87,6 +87,15 @@ export function normalizePass(input: string): string {
   return s
 }
 
+// A recovery PIN: exactly 4 digits. Used with First + Last to reconnect a
+// player who lost their pass, and to keep two same-named people distinct.
+export function normalizePin(input: string): string {
+  return input.replace(/\D/g, '').slice(0, 4)
+}
+export function isValidPin(input: string): boolean {
+  return /^[0-9]{4}$/.test(input)
+}
+
 // Local-only pass code, used when Supabase isn't configured (local dev) so the
 // app is still fully playable without a backend.
 function genLocalCode(): string {
@@ -104,11 +113,17 @@ const fromRow = (r: ProfileRow): Profile => ({
   lastName: r.last_name,
 })
 
-/** Create a new profile (server-side pass code), remember it, and return it. */
-export async function createProfile(first: string, last: string): Promise<Profile> {
+/**
+ * Create a new profile. The player picks a 4-digit PIN; First + Last + PIN must
+ * be unique, so two same-named people stay distinct and either can recover their
+ * pass later. Returns the profile (with its generated pass code); the PIN is
+ * never returned or stored on the device.
+ */
+export async function createProfile(first: string, last: string, pin: string): Promise<Profile> {
   const firstName = first.trim()
   const lastName = last.trim()
   if (!firstName || !lastName) throw new Error('First and last name are required.')
+  if (!isValidPin(pin)) throw new Error('Pick a 4-digit PIN (numbers only).')
 
   if (!supabase) {
     // No backend (local dev): make a self-contained local profile.
@@ -120,10 +135,11 @@ export async function createProfile(first: string, last: string): Promise<Profil
   const { data, error } = await supabase.rpc('create_profile', {
     p_first: firstName,
     p_last: lastName,
+    p_pin: pin,
   })
   if (error) throw new Error(friendlyRpcError(error))
   const row = (Array.isArray(data) ? data[0] : data) as ProfileRow | null
-  if (!row) throw new Error('Could not create your profile — please try again.')
+  if (!row || !row.id) throw new Error('Could not create your profile — please try again.')
   const p = fromRow(row)
   store(p)
   return p
@@ -152,10 +168,45 @@ export async function loginByPass(passInput: string): Promise<Profile | null> {
   return p
 }
 
-// Friendlier messages for the common "not set up yet" states, matching the
-// tone of resetScores in scores.ts.
+/**
+ * Recover a profile with First + Last + PIN — the fallback when a player has
+ * lost their Player Pass. Returns the profile, or null if nothing matches.
+ * Requires the live site (needs the server).
+ */
+export async function loginByNamePin(
+  first: string,
+  last: string,
+  pin: string,
+): Promise<Profile | null> {
+  const firstName = first.trim()
+  const lastName = last.trim()
+  if (!firstName || !lastName) throw new Error('Enter your first and last name.')
+  if (!isValidPin(pin)) throw new Error('Enter your 4-digit PIN.')
+
+  if (!supabase) {
+    throw new Error('Reconnecting with your name and PIN needs the live site.')
+  }
+
+  const { data, error } = await supabase.rpc('get_profile_by_name_pin', {
+    p_first: firstName,
+    p_last: lastName,
+    p_pin: pin,
+  })
+  if (error) throw new Error(friendlyRpcError(error))
+  const row = (Array.isArray(data) ? data[0] : data) as ProfileRow | null
+  if (!row || !row.id) return null
+  const p = fromRow(row)
+  store(p)
+  return p
+}
+
+// Friendlier messages for the common "not set up yet" and known states,
+// matching the tone of resetScores in scores.ts.
 function friendlyRpcError(error: { code?: string; message: string }): string {
   const code = error.code
+  if (/name\+pin taken/i.test(error.message)) {
+    return 'Someone with that name already uses that PIN. If that’s you, tap “Lost your pass?” to reconnect. If not, pick a different 4-digit PIN.'
+  }
   if (
     code === 'PGRST202' ||
     code === '42P01' ||
