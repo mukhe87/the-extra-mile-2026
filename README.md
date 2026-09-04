@@ -30,8 +30,9 @@ Leave it unset in production so the site auto-switches by Eastern Time.
 1. Create a project at supabase.com.
 2. In the SQL editor, run [`supabase/schema.sql`](supabase/schema.sql).
 3. Run [`supabase/profiles.sql`](supabase/profiles.sql) for Player Profiles
-   (the "Player Pass" identity — players' scores follow them across days and
-   devices).
+   (PIN-only sign-in — each account is a name + a unique 6-digit PIN; a forgot-
+   PIN reset issues a 4-digit code). Upgrading an existing DB? Run the latest
+   `supabase/profiles-*-migration.sql` instead.
 4. Run [`supabase/reset-function.sql`](supabase/reset-function.sql) for the
    admin scoreboard reset, then set the reset password in Table Editor →
    `app_config`.
