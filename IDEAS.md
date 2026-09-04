@@ -140,12 +140,74 @@ the QR hunt, and useful for every game.
 
 ---
 
+## Idea 4 — Week-long Online Escape Room Challenge 🧭
+
+**A big headline game with a big prize — themed to The Extra Mile / Hot Wheels.**
+
+### The concept (as described)
+- A **very hard, very challenging** online escape room, played over the week.
+- **One attempt per player per day.** Pressing **Start** begins a **3-hour timer**. If
+  they run out of time before finishing, they're **locked out until the next day** and
+  can try again then.
+- **First person to fully beat it = grand winner** (big prize), then **2nd** and **3rd**.
+- A **0%–100% progress ranking board**: shows how close each player is to finishing —
+  even players who *didn't* finish still appear, ranked by how far they got. Whoever is
+  closest to 100% sits on top. If a new player beats the standing best %, **their name
+  moves to the top and the previous leader drops to 2nd, 3rd, etc.**
+
+### The 0–100% progress board is shared with the License Plate hunt
+Corey: this same progress ranking board should also drive the **License Plate Challenge
+(QR hunt)** — there, progress % = states collected ÷ 50. So build the **progress board
+as one reusable component** that both the Escape Room and the hunt feed into (and it can
+serve any future "% toward a goal" game). It's distinct from the existing per-game
+"high score" leaderboard.
+
+### How it could work technically
+- Escape room = a sequence of gated puzzles/rooms; **% = puzzles solved ÷ total**.
+- **Attempt control (needs Player Profiles, Idea 1a):** an `escape_attempts` row per
+  `(profile_id, ET-day)` with a **server-recorded start timestamp**, so the 3-hour clock
+  and the one-try-per-day lock can't be beaten by refreshing or switching devices.
+- **Ranking:** highest % first; ties broken by **earliest to reach that %** (so the first
+  to finish wins, and the first to reach a given progress outranks a later tie). Store
+  best-%-so-far per player and the timestamp they hit it.
+- **Live board:** reuse the existing Supabase realtime pattern so standings update as
+  people play.
+
+### Open questions to resolve 🟡
+1. **Anti-cheat / shared answers (biggest one).** If every player gets the *same* puzzles,
+   people who play later in the week can be told the answers. Options: (a) accept it —
+   reward finishing fast early; (b) **seed per-player variations** (same puzzle types,
+   different specifics) so answers don't transfer; (c) a pool of puzzles drawn randomly.
+   (b)/(c) are much more work but protect the "big prize" fairness.
+2. **Content design + difficulty.** "Really hard" means real, well-crafted puzzles — this
+   is the **largest content build** of all the ideas. Who writes/approves the puzzles?
+3. **Resume vs. restart within the day.** If they close the tab mid-attempt, do they
+   resume where they were (clock still running) or restart? (Server start-time means the
+   clock keeps running regardless — confirm that's intended.)
+4. **"Fully beat it" definition** and how the daily 3-hour window interacts with the
+   all-week "first to finish wins" (finish time is what ranks the top 3).
+5. **Scope vs. deadline.** Big build + big content. Against Oct 2, this competes directly
+   with Monopoly/Uno for the remaining time — ranking matters.
+
+### What we'd deliver
+- The escape-room game (puzzles + gating + 3-hour timer + daily lock).
+- `escape_attempts` (server clock + one-try-per-day) keyed to profiles.
+- The **reusable 0–100% progress ranking board** (used here *and* by the QR hunt).
+- Admin visibility + export of attempts/progress; grand-winner + 2nd/3rd readout.
+
+---
+
 ## Cross-cutting things to look into
 - **Player Profiles first.** Ideas 1/1a are the practical starting point — the profile
-  system unblocks the hunt and improves every game. It's also the lowest-risk of the new
-  work.
-- **Deadline math.** Ideas 2 and 3 are meaningfully larger than anything built so far.
-  Against Oct 2 ready / Oct 5 event, we likely can't do all of this well — rank and pick.
+  system unblocks the QR hunt *and* the escape room (one-try-per-day + the 3-hour clock
+  need a reliable per-player identity) and improves every game. Lowest-risk of the new work.
+- **Reusable 0–100% progress board.** Build it once (Idea 4) and feed it from both the
+  escape room (puzzles solved) and the QR hunt (states ÷ 50). It's a *progress* board,
+  separate from the existing high-score leaderboards.
+- **Deadline math.** Ideas 2 (Monopoly), 3 (Uno) and 4 (escape room) are each large
+  builds — the escape room also carries the heaviest *content* load. Against Oct 2 ready /
+  Oct 5 event we almost certainly can't do all of them well — rank and pick. The two
+  "big prize" headliners Corey has named are the **QR hunt** and the **escape room**.
 - **Trademark posture (Monopoly / Uno / Hot Wheels).** Decide once: licensed, or
   original reskins of the mechanics. Affects both new card/board games.
 - **Schedule impact.** If the QR hunt is an all-week meta-game and Monopoly takes
