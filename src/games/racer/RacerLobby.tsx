@@ -3,7 +3,7 @@ import Phaser from 'phaser'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { GameProps } from '../PlaceholderGame'
 import { supabase, supabaseReady } from '../../lib/supabase'
-import { getPlayer } from '../../lib/player'
+import { getProfile } from '../../lib/profile'
 import RacerScene from '../phaser/RacerScene'
 import { RACE_GOAL, seedFromCode, type RaceBridge, type RaceMode } from './raceBridge'
 
@@ -33,7 +33,7 @@ export default function RacerLobby({ onScore }: GameProps) {
   const opponentResultRef = useRef<{ points: number } | null>(null)
   const meRef = useRef(Math.random().toString(36).slice(2))
 
-  const player = getPlayer()
+  const player = getProfile()
 
   const startRace = useCallback(
     (raceMode: RaceMode, seed: number) => {

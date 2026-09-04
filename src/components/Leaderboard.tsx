@@ -11,7 +11,7 @@ export default function Leaderboard({
 }: {
   gameSlug: string
   scoreLabel: string
-  highlight?: { firstName: string; lastName: string }
+  highlight?: { profileId?: string | null; firstName: string; lastName: string }
 }) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,8 +78,10 @@ export default function Leaderboard({
           {entries.map((e) => {
             const isMe =
               highlight &&
-              e.firstName.toLowerCase() === highlight.firstName.toLowerCase() &&
-              e.lastName.toLowerCase() === highlight.lastName.toLowerCase()
+              (highlight.profileId && e.profileId
+                ? e.profileId === highlight.profileId
+                : e.firstName.toLowerCase() === highlight.firstName.toLowerCase() &&
+                  e.lastName.toLowerCase() === highlight.lastName.toLowerCase())
             return (
               <li
                 key={`${e.firstName}-${e.lastName}-${e.rank}`}

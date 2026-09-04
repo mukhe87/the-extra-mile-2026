@@ -29,7 +29,13 @@ Leave it unset in production so the site auto-switches by Eastern Time.
 ## Supabase
 1. Create a project at supabase.com.
 2. In the SQL editor, run [`supabase/schema.sql`](supabase/schema.sql).
-3. Settings → API: copy the **Project URL** and **anon public** key into `.env`
+3. Run [`supabase/profiles.sql`](supabase/profiles.sql) for Player Profiles
+   (the "Player Pass" identity — players' scores follow them across days and
+   devices).
+4. Run [`supabase/reset-function.sql`](supabase/reset-function.sql) for the
+   admin scoreboard reset, then set the reset password in Table Editor →
+   `app_config`.
+5. Settings → API: copy the **Project URL** and **anon public** key into `.env`
    (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 
 The site runs without Supabase (games are playable), but leaderboards stay in a

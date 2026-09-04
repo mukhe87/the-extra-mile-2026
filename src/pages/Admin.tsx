@@ -82,7 +82,9 @@ function SummaryCard({ reloadKey }: { reloadKey: number }) {
     fetchAllScores()
       .then((rows) => {
         if (!active) return
-        const players = new Set(rows.map((r) => `${r.first_name} ${r.last_name}`.toLowerCase())).size
+        const players = new Set(
+          rows.map((r) => r.profile_id ?? `name:${r.first_name} ${r.last_name}`.toLowerCase()),
+        ).size
         const games = new Set(rows.map((r) => r.game_slug)).size
         setSummary({ players, plays: rows.length, games })
       })
