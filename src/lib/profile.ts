@@ -207,12 +207,78 @@ function friendlyRpcError(error: { code?: string; message: string }): string {
   if (/name\+pin taken/i.test(error.message)) {
     return 'Someone with that name already uses that PIN. If that’s you, tap “Lost your pass?” to reconnect. If not, pick a different 4-digit PIN.'
   }
+  if (/unauthorized/i.test(error.message)) {
+    return 'Admin password didn’t match the one in Supabase → app_config.'
+  }
+  if (/admin password not set/i.test(error.message)) {
+    return 'Admin password isn’t set — add it in Supabase → Table Editor → app_config (reset_password).'
+  }
   if (
     code === 'PGRST202' ||
     code === '42P01' ||
     /could not find|schema cache|function|relation .* does not exist/i.test(error.message)
   ) {
-    return 'Profiles aren’t set up yet — run supabase/profiles.sql once in Supabase, then try again.'
+    return 'Player admin isn’t set up yet — run supabase/admin-players.sql once in Supabase, then try again.'
   }
   return error.message
+}
+
+// ---------------------------------------------------------------------------
+// Admin player management (gated by the admin password server-side). These call
+// the SECURITY DEFINER functions in supabase/admin-players.sql.
+// ---------------------------------------------------------------------------
+
+export type AdminProfile = {
+  id: string
+  firstName: string
+  lastName: string
+  passCode: string
+  createdAt: string
+  scoreCount: number
+}
+
+/** Search players by name or pass code (admin). Returns [] if not configured. */
+export async function adminFindProfiles(pw: string, query: string): Promise<AdminProfile[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('admin_find_profiles', { pw, q: query })
+  if (error) throw new Error(friendlyRpcError(error))
+  return ((data ?? []) as Array<{
+    id: string
+    first_name: string
+    last_name: string
+    pass_code: string
+    created_at: string
+    score_count: number
+  }>).map((r) => ({
+    id: r.id,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    passCode: r.pass_code,
+    createdAt: r.created_at,
+    scoreCount: Number(r.score_count),
+  }))
+}
+
+/** Issue a new Player Pass for a player (keeps all their data). Returns it. */
+export async function adminResetPass(pw: string, profileId: string): Promise<string> {
+  if (!supabase) throw new Error('This needs the live site.')
+  const { data, error } = await supabase.rpc('admin_reset_pass', { pw, p_id: profileId })
+  if (error) throw new Error(friendlyRpcError(error))
+  return String(data)
+}
+
+/** Set a new 4-digit PIN for a player (keeps all their data). */
+export async function adminSetPin(pw: string, profileId: string, newPin: string): Promise<void> {
+  if (!supabase) throw new Error('This needs the live site.')
+  if (!isValidPin(newPin)) throw new Error('PIN must be 4 digits.')
+  const { error } = await supabase.rpc('admin_set_pin', { pw, p_id: profileId, new_pin: newPin })
+  if (error) throw new Error(friendlyRpcError(error))
+}
+
+/** Delete a player's account AND all their data. Returns scores removed. */
+export async function adminDeleteProfile(pw: string, profileId: string): Promise<number> {
+  if (!supabase) throw new Error('This needs the live site.')
+  const { data, error } = await supabase.rpc('admin_delete_profile', { pw, p_id: profileId })
+  if (error) throw new Error(friendlyRpcError(error))
+  return (data as number) ?? 0
 }
