@@ -16,47 +16,90 @@ Status legend: 🧭 to research · 🟡 needs decisions · 🟢 ready to build.
   - **100** map to **duplicate / fake license plates** (the "losers" — they don't count).
 - QR codes are **printed and hidden all over the company campus**. Players hunt for
   them during breaks/lunches **all week**.
-- A player **scans a QR code with their phone** and **uploads it in the web app**;
-  the app **adds that state to their personal collection** (real plates only).
+- The web app has an **Upload / Scan button**. A player **scans or uploads a QR code
+  with their phone**; if the code is one of the **50 real states**, it's **saved under
+  their profile and added to their collection**. Fake/duplicate codes are **losers**
+  and add nothing.
 - Goal: **collect all 50 states — or the closest to 50 — to win a big prize.**
-- Duplicate/fake plates score nothing.
+- **The Excel export gets a new "Collection" sheet** showing each player and which of
+  the 50 states they've collected (and their total).
 
 ### How it could work technically
 - Each QR encodes a link into the web app, e.g. `…/hunt?code=<token>`, where
-  `<token>` is an opaque unguessable ID (not the state name — so players can't
-  forge one).
+  `<token>` is an **opaque, unguessable ID** — never the state name — so players can't
+  forge one or guess the other codes.
 - A `hunt_codes` table maps `token → { kind: 'state' | 'fake', state?: '<XX>' }`.
   50 tokens are real states, 100 are fakes.
-- A `hunt_finds` table records `{ player, token, found_at }` (unique on player+token
-  so re-scanning the same code doesn't double-count).
-- The player's collection = distinct **real** states across their finds. Leaderboard =
-  most states collected (ties broken by who reached the count first).
-- "Upload the QR image" vs "scan opens a link": scanning a link is far more reliable
-  than image-upload + decode. **Recommend: QR opens the app link directly** (phones
-  do this natively from the camera). Keep image-upload as a fallback only if needed.
+- A `hunt_finds` table records `{ profile_id, token, found_at }`, unique on
+  `(profile_id, token)` so re-scanning the same physical code never double-counts.
+- A player's collection = the distinct **real** states across their finds. Hunt
+  leaderboard = most states collected (ties broken by who reached that count first).
+- **Upload button, two modes:**
+  1. **Scan (recommended):** the phone camera opens the QR's link straight into the
+     app and it records the find. Most reliable — no image decoding needed.
+  2. **Upload image (as asked):** a file/camera input where the player submits a photo
+     of the QR; the app decodes it in-browser (e.g. a small QR-reader library) and
+     records the find. Keep this as the fallback path; decoding photos is less reliable
+     than a direct scan (lighting, blur, angle).
+- **Fakes** don't need real plate art — a "Nice try — not a real state!" result screen
+  is cheaper and funnier. Real states can show the state name + a plate graphic.
 
 ### Open questions to resolve 🟡
-1. **Scan-to-link vs image-upload?** Link is simpler and more reliable; Corey's note
-   says "upload the QR image." Confirm which experience we want. (Strong lean: link.)
-2. **Anti-cheating.** Should a given physical code be claimable by everyone (shared
-   hunt) or first-come-first-served? If someone shares a screenshot of a code, anyone
-   could claim that state. Options: allow it (simplest), or one-claim-per-code, or
-   require being on campus Wi-Fi / a time window.
-3. **Names without accounts.** Today players are First+Last with no login. An all-week
-   collection needs to reliably tie finds to a person across days/devices. Need a
-   lightweight identity (e.g. a code/QR "player pass" saved to their phone, or a
-   simple PIN) so a collection persists. **This is the biggest design question.**
-4. **Prize / tie rules.** If nobody hits 50, "closest to 50" — how are ties broken?
-5. **Physical production.** Who prints the 150 codes and places them? We generate the
-   printable QR sheets (PDF), Corey's team places them.
-6. **The 100 fakes** — do they need believable fake plate art, or just a "Nice try —
-   not a real state!" screen? Cheaper + funnier to just show a loser screen.
+1. **Anti-cheating / shared codes.** If someone photographs a code and texts it around,
+   anyone could claim that state without finding it. Options: (a) allow it (simplest —
+   it's a friendly event), (b) first-scan-only per physical code, (c) require campus
+   Wi-Fi or a per-code time window. Pick a posture.
+2. **Prize / tie rules.** If nobody hits all 50, "closest to 50" — how are ties broken
+   (earliest to reach the count? total scans?).
+3. **Physical production.** We generate printable QR sheets (a PDF, codes labeled on the
+   back only so the state isn't visible); Corey's team prints + places the 150 codes.
+4. **State art.** Do we want per-state plate graphics in the collection view, or just
+   state names/abbreviations to start? (Art is a nice-to-have, not required to ship.)
 
 ### What we'd deliver
-- A QR-generator script → printable sheet (150 codes, labeled on the back only).
-- The `hunt` page + `hunt_codes`/`hunt_finds` tables + a per-player collection view
-  (a 50-state map/grid that fills in) + a hunt leaderboard.
-- Admin: see who has what, export, reset.
+- A QR-generator script → printable sheet (150 codes) + a private key list mapping each
+  printed code to what it is (for Corey's records).
+- The `hunt` page + Upload/Scan button + `hunt_codes` / `hunt_finds` tables.
+- A per-player **collection view** — a 50-state grid/map that fills in as you collect.
+- Hunt leaderboard + the new **Collection sheet** in the Excel export + admin reset.
+
+---
+
+## Idea 1a — Player Profiles (foundational — the QR hunt needs this) 🟡
+
+Corey's note: *"set up a profile for each player/user … so this new game option can be
+saved under each individual's profile and data does not get mixed up. Come up with a
+good solution."* Today the site has **no accounts** — players just type First + Last per
+play, so there's nothing that reliably ties an all-week collection to one person across
+days and devices. Two "John Smith"s would collide. So profiles are a prerequisite for
+the QR hunt, and useful for every game.
+
+### Recommended solution — a lightweight "Player Pass" (no passwords, no PII)
+1. **First visit:** player enters First + Last (as today). We create a `profiles` row
+   and generate a short, friendly **Player Pass code** (e.g. `EXTRA-4F7Q`).
+2. **Stays signed in on that device:** the pass is saved in the browser
+   (`localStorage`), so on their own phone they're just "them" every time — no
+   re-entry.
+3. **Use another device / cleared browser:** they enter their Player Pass code (or
+   First+Last + pass) to re-attach to the same profile. We can also show the pass as a
+   personal QR they can screenshot and scan to log in on any device.
+4. **All game data (scores + hunt finds) is keyed to `profile_id`,** not to a raw typed
+   name — so nothing gets mixed up even with duplicate names.
+
+**Why this over the alternatives:**
+- *Email / employee-ID login* = stronger identity but more friction and it collects PII
+  (privacy considerations for employees). Overkill for a one-week internal event.
+- *Name-only (today)* = zero friction but can't reliably persist a week-long collection
+  or separate duplicate names. Not enough for the hunt.
+- The Player Pass is the balance: near-zero friction, works cross-device, no passwords,
+  no PII beyond the name they already give.
+
+### Open questions 🟡
+- Optional **employee ID** field if Corey wants stronger identity / to match to staff.
+- **Migration:** existing scores are keyed to raw names. We'd map them to profiles or
+  start profiles fresh (fine, since the DB was reset for the real event).
+- **Scope flag:** this is a real change to the current no-account model — it touches
+  score submission, the leaderboard, and the export. Meaningful but very doable.
 
 ---
 
@@ -65,17 +108,16 @@ Status legend: 🧭 to research · 🟡 needs decisions · 🟢 ready to build.
 **Monday game, replacing the License Plate Challenge slot.**
 
 - A multiplayer, play-against-others board game themed to Hot Wheels.
-- Would be the **second head-to-head/multiplayer game** (the car racer is the other).
+- Would be the **second multiplayer game** (the car racer is the other).
 
 ### Open questions to resolve 🟡
 1. **IP / trademark.** "Monopoly" and "Hot Wheels" are trademarks (Hasbro, Mattel).
    For a **public-internet** site this is a real concern. Options: (a) get permission,
    (b) build an **IP-safe reskin** — same mechanic (buy/own spaces, rent, roll-and-move)
-   under an original name/theme (e.g. "Extra Mile Motorway" property game). **Lean: reskin.**
-2. **Scope.** A full multiplayer Monopoly is a *large* build (turn logic, trading,
-   real-time sync for N players, a full board) — realistically the biggest single
-   game on the list. Confirm appetite vs. the Oct 2 deadline, or a simplified version
-   (shorter board, no trading, timed rounds).
+   under an original name/theme (e.g. "Extra Mile Motorway"). **Lean: reskin.**
+2. **Scope.** A full multiplayer Monopoly is the *largest* build on the list (turn
+   logic, trading, real-time sync for N players, a full board). Confirm appetite vs. the
+   Oct 2 deadline, or agree a simplified version (shorter board, no trading, timed).
 3. **Async vs live?** All players in one live game (like the racer) or drop-in?
 
 ---
@@ -88,23 +130,23 @@ Status legend: 🧭 to research · 🟡 needs decisions · 🟢 ready to build.
 
 ### Open questions to resolve 🟡
 1. **IP / trademark.** "Uno" is a Mattel trademark. Same call as Monopoly — an
-   **IP-safe reskin** of the classic matching/last-card mechanic under an original
-   name (e.g. "Pit Stop" / "Last Card") avoids the issue. **Lean: reskin.**
+   **IP-safe reskin** of the classic matching / last-card mechanic under an original
+   name (e.g. "Pit Stop" / "Last Card") avoids it. **Lean: reskin.**
 2. **Scope.** Real-time multiplayer card game — moderate-to-large build (deck logic,
-   turn order, matching rules, bots to fill empty seats, live sync). Smaller than
-   Monopoly, still substantial.
-3. **Wed & Fri already share the arcade set + the racer.** Confirm whether Uno is an
+   turn order, matching rules, bots to fill seats, live sync). Smaller than Monopoly,
+   still substantial.
+3. **Wed & Fri already run the arcade set + the racer.** Confirm whether Uno is an
    *additional* game those days (3 games) or *replaces* one of the current two.
 
 ---
 
 ## Cross-cutting things to look into
-- **Deadline math.** Ideas 2 and 3 are meaningfully larger than anything built so
-  far. Against the Oct 2 ready / Oct 5 event date, we likely can't do all three well.
-  Worth ranking them and picking what's realistic.
+- **Player Profiles first.** Ideas 1/1a are the practical starting point — the profile
+  system unblocks the hunt and improves every game. It's also the lowest-risk of the new
+  work.
+- **Deadline math.** Ideas 2 and 3 are meaningfully larger than anything built so far.
+  Against Oct 2 ready / Oct 5 event, we likely can't do all of this well — rank and pick.
 - **Trademark posture (Monopoly / Uno / Hot Wheels).** Decide once: licensed, or
-  original reskins of the mechanics. This affects both new card/board games.
-- **Persistent player identity.** The QR hunt (and any multi-session progress) needs
-  a reliable way to recognize the same player across days without full accounts.
+  original reskins of the mechanics. Affects both new card/board games.
 - **Schedule impact.** If the QR hunt is an all-week meta-game and Monopoly takes
   Monday's slot, restate the weekly lineup so it's unambiguous.
