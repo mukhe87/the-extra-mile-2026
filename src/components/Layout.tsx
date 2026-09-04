@@ -14,8 +14,8 @@ export default function Layout({ children }: { children: ReactNode }) {
               src="/extra-mile-logo.png"
               alt="The Extra Mile — 7-Eleven Customer Service Week 2026"
               className="h-12 w-auto sm:h-14"
-              width={1238}
-              height={1271}
+              width={623}
+              height={640}
             />
             <span className="hidden leading-tight sm:block">
               <span className="block font-display text-xl tracking-wide">
