@@ -96,9 +96,13 @@ function CardView({
       disabled={!onClick}
       aria-label={`${lane ? lane.label + ' ' : ''}${cardFace(card)}`}
       style={{ backgroundColor: style.bg, color: style.text }}
-      className={`${size} ${FOCUS_RING} relative flex shrink-0 items-center justify-center rounded-xl px-1 text-center font-display leading-tight shadow transition ${
+      className={`${size} ${FOCUS_RING} relative flex shrink-0 items-center justify-center rounded-xl px-1 text-center font-display leading-tight shadow motion-safe:transition ${
         onClick ? 'cursor-pointer' : 'cursor-default'
-      } ${playable ? 'ring-4 ring-seven-orange -translate-y-2' : 'ring-1 ring-black/10'}`}
+      } ${
+        playable
+          ? 'ring-4 ring-seven-orange border border-seven-dark/70 motion-safe:-translate-y-2'
+          : 'ring-1 ring-black/10 border border-transparent'
+      }`}
     >
       {/* Non-color lane cue (glyph + code), visible to sighted users. Hidden
           from AT since the aria-label already names the lane. */}
@@ -147,6 +151,8 @@ export default function FullThrottle({ onScore }: GameProps) {
   const cpuTimer = useRef<number | undefined>(undefined)
   const scoredRef = useRef(false) // guards the single onScore call
   const firstWildRef = useRef<HTMLButtonElement>(null) // focus target when picker opens
+  const statusRef = useRef<HTMLParagraphElement>(null) // stable focus target after a play
+  const focusStatusRef = useRef(false) // set when a human play should re-anchor focus
 
   const seatCount = cpuCount + 1
 
@@ -162,6 +168,16 @@ export default function FullThrottle({ onScore }: GameProps) {
   useEffect(() => {
     if (pickingWild !== null) firstWildRef.current?.focus()
   }, [pickingWild])
+
+  // After a human play the played card unmounts; without this, keyboard/SR focus
+  // falls to document.body and the player must re-tab every turn (WCAG 2.4.3).
+  // Re-anchor focus on the stable status line once the new state has rendered.
+  useEffect(() => {
+    if (focusStatusRef.current) {
+      focusStatusRef.current = false
+      statusRef.current?.focus()
+    }
+  }, [state])
 
   // Begin a hand: deal and reset per-hand UI flags.
   const startHand = useCallback(
@@ -257,6 +273,11 @@ export default function FullThrottle({ onScore }: GameProps) {
     if (phase === 'sessionOver' && !scoredRef.current) {
       scoredRef.current = true
       onScore(scores[0] ?? 0)
+      // Announce the final outcome through the polite live region so SR users
+      // hear the session result, not just sighted users reading the panel.
+      setMessage(
+        `Session complete — you banked ${scores[0] ?? 0} points over ${HANDS_PER_SESSION} hands.`,
+      )
     }
   }, [phase, scores, onScore])
 
@@ -276,6 +297,7 @@ export default function FullThrottle({ onScore }: GameProps) {
       return
     }
     setAwaitingPass(false)
+    focusStatusRef.current = true
     commitPlay(state, 0, card.id, undefined)
   }
 
@@ -284,6 +306,7 @@ export default function FullThrottle({ onScore }: GameProps) {
     const id = pickingWild
     setPickingWild(null)
     setAwaitingPass(false)
+    focusStatusRef.current = true
     commitPlay(state, 0, id, lane)
   }
 
@@ -327,10 +350,11 @@ export default function FullThrottle({ onScore }: GameProps) {
           {HANDS_PER_SESSION} hands wins.
         </p>
         <div className="mb-6">
-          <label className="mb-2 block text-sm font-bold text-seven-dark/70">
+          <label htmlFor="cpu-count" className="mb-2 block text-sm font-bold text-seven-dark/70">
             CPU drivers: {cpuCount} ({seatCount} seats)
           </label>
           <input
+            id="cpu-count"
             type="range"
             min={MIN_CPU}
             max={MAX_CPU}
@@ -393,7 +417,9 @@ export default function FullThrottle({ onScore }: GameProps) {
             <div
               key={seat}
               className={`flex items-center gap-2 rounded-xl px-3 py-2 ${
-                isTurn ? 'bg-seven-orange/15 ring-2 ring-seven-orange' : 'bg-seven-dark/5'
+                isTurn
+                  ? 'bg-seven-orange/15 ring-2 ring-seven-orange border border-seven-dark/60'
+                  : 'bg-seven-dark/5 border border-transparent'
               }`}
             >
               <CardBack small />
@@ -413,7 +439,7 @@ export default function FullThrottle({ onScore }: GameProps) {
           <button
             type="button"
             onClick={humanDraw}
-            disabled={!humanTurn || humanHasPlay || awaitingPass}
+            disabled={!humanTurn || humanHasPlay || awaitingPass || pickingWild !== null}
             aria-label="Draw a card"
             className={`${FOCUS_RING} rounded-xl disabled:opacity-50`}
           >
@@ -464,9 +490,11 @@ export default function FullThrottle({ onScore }: GameProps) {
 
       {/* Turn / message line — announced so SR players hear turn/hand changes. */}
       <p
+        ref={statusRef}
+        tabIndex={-1}
         role="status"
         aria-live="polite"
-        className="mb-2 min-h-5 text-center text-sm font-bold text-seven-dark/70"
+        className="mb-2 min-h-5 text-center text-sm font-bold text-seven-dark/70 focus:outline-none"
       >
         {message ||
           (humanTurn
@@ -485,7 +513,7 @@ export default function FullThrottle({ onScore }: GameProps) {
               key={card.id}
               card={card}
               playable={playable}
-              onClick={playable ? () => playHumanCard(card) : undefined}
+              onClick={playable && pickingWild === null ? () => playHumanCard(card) : undefined}
             />
           )
         })}
