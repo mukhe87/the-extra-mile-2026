@@ -18,10 +18,10 @@ export const DAY_LABEL: Record<DayKey, string> = {
 
 // Ordered game slugs per day. Slugs map to entries in games/registry.ts.
 export const SCHEDULE: Record<DayKey, string[]> = {
-  // Monday's second game slot is pending a new game (the old License Plate
-  // Challenge became the all-week hunt at /license-plate). Road Trivia holds
-  // Monday for now.
-  mon: ['road-trivia'],
+  // Monday leads with Full Throttle, the car-lane card game; Road Trivia
+  // rounds out the day. (The old License Plate Challenge became the all-week
+  // hunt at /license-plate.)
+  mon: ['full-throttle', 'road-trivia'],
   tue: ['extra-mile-bingo', 'roadside-detour'],
   wed: ['muncher', 'fixed-shooter', 'road-crosser', 'snake', 'space-shooter'],
   thu: ['car-racing', 'mystery-challenge'],

@@ -9,6 +9,7 @@ import RoadTrivia from './RoadTrivia'
 import ExtraMileBingo from './ExtraMileBingo'
 import RoadsideDetour from './RoadsideDetour'
 import LaunchReaction from './LaunchReaction'
+import FullThrottle from './FullThrottle'
 
 // The Phaser arcade games are lazy-loaded so Phaser (~1.5 MB) is fetched only
 // when someone opens one of those games, keeping the initial page light. They
@@ -41,6 +42,15 @@ export type GameMeta = {
 // all-week state-collecting hunt at /license-plate (see pages/LicensePlateChallenge
 // and lib/hunt), so it is intentionally NOT in this registry or the daily schedule.
 export const GAMES: Record<string, GameMeta> = {
+  'full-throttle': {
+    slug: 'full-throttle',
+    title: 'Full Throttle',
+    blurb: 'A car-lane card duel vs the CPU — match, block, and be first to empty your hand.',
+    mode: 'leaderboard',
+    scoreLabel: 'points',
+    built: true,
+    load: FullThrottle,
+  },
   'road-trivia': {
     slug: 'road-trivia',
     title: 'Road Trivia',
