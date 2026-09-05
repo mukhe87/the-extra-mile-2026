@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { currentDayKey, todaysGameSlugs, DAY_LABEL, SCHEDULE, type DayKey } from '../lib/schedule'
 import { getGame } from '../games/registry'
 import GameCard from '../components/GameCard'
@@ -34,6 +35,27 @@ export default function Home() {
         <div className="road-strip h-2" />
       </section>
 
+      {/* All-week feature: the License Plate Challenge runs every day. */}
+      <section className="mb-8">
+        <Link
+          to="/license-plate"
+          className="flex items-center justify-between gap-4 rounded-2xl border-2 border-seven-orange bg-seven-orange/5 p-5 transition hover:bg-seven-orange/10"
+        >
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-widest text-seven-orange">
+              All week · Grand prize
+            </p>
+            <h2 className="font-display text-2xl">License Plate Challenge</h2>
+            <p className="text-sm text-seven-dark/70">
+              Hunt the hidden code tiles around campus and collect all 50 state plates. Play any day.
+            </p>
+          </div>
+          <span className="hidden shrink-0 rounded-full bg-seven-orange px-5 py-2 font-bold text-white sm:inline">
+            Play →
+          </span>
+        </Link>
+      </section>
+
       {isEventDay ? (
         <section className="mb-12 grid gap-5 sm:grid-cols-2">
           {slugs.map((slug) => {
@@ -50,6 +72,12 @@ export default function Home() {
       <section>
         <h2 className="mb-4 font-display text-2xl">This week’s lineup</h2>
         <div className="grid gap-3">
+          <div className="rounded-xl border-2 border-seven-orange/40 bg-seven-orange/5 p-4">
+            <p className="mb-1 text-sm font-bold uppercase tracking-wide text-seven-orange">
+              All week
+            </p>
+            <p className="text-sm text-seven-dark/80">License Plate Challenge</p>
+          </div>
           {WEEK_ORDER.map((d) => (
             <div
               key={d}

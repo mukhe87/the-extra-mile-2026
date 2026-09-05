@@ -5,7 +5,6 @@
 
 import { lazy, type ComponentType } from 'react'
 import type { GameProps } from './PlaceholderGame'
-import LicensePlate from './LicensePlate'
 import RoadTrivia from './RoadTrivia'
 import ExtraMileBingo from './ExtraMileBingo'
 import RoadsideDetour from './RoadsideDetour'
@@ -38,16 +37,10 @@ export type GameMeta = {
   load: ComponentType<GameProps>
 }
 
+// NOTE: "License Plate Challenge" is no longer a scored harness game — it's the
+// all-week state-collecting hunt at /license-plate (see pages/LicensePlateChallenge
+// and lib/hunt), so it is intentionally NOT in this registry or the daily schedule.
 export const GAMES: Record<string, GameMeta> = {
-  'license-plate': {
-    slug: 'license-plate',
-    title: 'License Plate Challenge',
-    blurb: 'Spot state plates on the open road before the timer runs out.',
-    mode: 'leaderboard',
-    scoreLabel: 'points',
-    built: true,
-    load: LicensePlate,
-  },
   'road-trivia': {
     slug: 'road-trivia',
     title: 'Road Trivia',
