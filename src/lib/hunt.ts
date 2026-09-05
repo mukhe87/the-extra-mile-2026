@@ -146,6 +146,18 @@ export function subscribeHunt(onChange: () => void): () => void {
   }
 }
 
+/** Admin: the list of all printed code ids (for the printable tiles). */
+export async function adminListCodes(password: string): Promise<string[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('admin_list_codes', { pw: password })
+  if (error) {
+    if (/unauthorized/i.test(error.message))
+      throw new Error('Wrong admin password (check Supabase → app_config → reset_password).')
+    throw error
+  }
+  return (data ?? []) as string[]
+}
+
 /** Admin: wipe all hunt progress. Gated by the admin password server-side. */
 export async function adminResetHunt(password: string): Promise<number> {
   if (!supabase) throw new Error('Supabase is not configured.')

@@ -40,7 +40,14 @@ Leave it unset in production so the site auto-switches by Eastern Time.
    player management (look up players, issue a new pass / reset a PIN keeping
    their data, or delete an account and all its data). Gated by the same
    `app_config` password.
-6. Settings → API: copy the **Project URL** and **anon public** key into `.env`
+6. Run [`supabase/license-plate-hunt.sql`](supabase/license-plate-hunt.sql) for
+   the all-week **License Plate Challenge** (collect all 50 states by scanning
+   code tiles hidden around campus; what each code is worth rotates server-side
+   for anti-cheat). Nothing to edit. Then print the code tiles from the admin
+   panel → **License Plate Challenge → Print code tiles**, cut them out, and hide
+   them. Reset/standings/export are in the same admin section, gated by the
+   `app_config` password.
+7. Settings → API: copy the **Project URL** and **anon public** key into `.env`
    (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 
 The site runs without Supabase (games are playable), but leaderboards stay in a

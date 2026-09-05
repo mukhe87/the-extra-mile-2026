@@ -202,6 +202,15 @@ begin
     limit greatest(1, coalesce(p_limit, 200));
 end; $$;
 
+-- Admin: the full list of printed code ids, so the panel can render the
+-- printable code tiles. Gated by the admin password.
+create or replace function public.admin_list_codes(pw text)
+returns setof text language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_check(pw);
+  return query select code_id from public.hunt_codes order by code_id;
+end; $$;
+
 -- Admin: wipe all hunt progress (gated by the admin password in app_config).
 create or replace function public.admin_reset_hunt(pw text)
 returns integer language plpgsql security definer set search_path = public as $$
@@ -216,4 +225,5 @@ end; $$;
 
 grant execute on function public.hunt_scan(uuid, text) to anon;
 grant execute on function public.get_hunt_standings(int) to anon;
+grant execute on function public.admin_list_codes(text) to anon;
 grant execute on function public.admin_reset_hunt(text) to anon;

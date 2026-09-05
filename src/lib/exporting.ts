@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx'
 import { GAMES } from '../games/registry'
 import { rankBestPerPlayer, overallStandings, type ScoreRow } from './scores'
+import { TOTAL_STATES, stateName, type HuntStanding } from './hunt'
 import type { DayKey } from './schedule'
 
 // Reports are split by the day a score was actually played (Eastern Time), not
@@ -93,6 +94,27 @@ export function downloadFullReport(rows: ScoreRow[]): void {
   XLSX.utils.book_append_sheet(wb, scoresSheet(rows), 'All Scores')
   appendPerGameSheets(wb, rows)
   XLSX.writeFile(wb, `extra-mile-full-week-${stamp()}.xlsx`)
+}
+
+/**
+ * Download the License Plate Challenge standings: a ranked summary plus each
+ * player's collected states. `states` is out of TOTAL_STATES (50).
+ */
+export function downloadHuntReport(standings: HuntStanding[]): void {
+  const wb = XLSX.utils.book_new()
+  const summary = standings.map((s, i) => ({
+    Rank: i + 1,
+    'First Name': s.firstName,
+    'Last Name': s.lastName,
+    Username: s.username,
+    States: s.states,
+    'Out Of': TOTAL_STATES,
+    Complete: s.states >= TOTAL_STATES ? 'Yes' : 'No',
+    'Last Collected (ET)': s.lastAt ? etDateTime(s.lastAt) : '',
+    'States Collected': s.stateList.map((c) => `${c} (${stateName(c)})`).join(', '),
+  }))
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), 'License Plate')
+  XLSX.writeFile(wb, `extra-mile-license-plate-${stamp()}.xlsx`)
 }
 
 /**

@@ -9,6 +9,8 @@ import { useProfile, touchSession } from './lib/profile'
 // Admin pulls in xlsx (~large); lazy-load it so the export code isn't in the
 // initial bundle everyone downloads.
 const Admin = lazy(() => import('./pages/Admin'))
+// The License Plate Challenge pulls in a QR decoder; lazy-load it too.
+const LicensePlateChallenge = lazy(() => import('./pages/LicensePlateChallenge'))
 
 export default function App() {
   const player = useProfile()
@@ -33,6 +35,20 @@ export default function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route
+          path="/license-plate"
+          element={
+            <Suspense
+              fallback={
+                <div className="rounded-2xl bg-white p-8 text-center text-seven-dark/60 shadow">
+                  Loading…
+                </div>
+              }
+            >
+              <LicensePlateChallenge />
+            </Suspense>
+          }
+        />
         <Route path="/play/:slug" element={<GamePage />} />
         <Route
           path="/admin"

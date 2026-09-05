@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import QRCode from 'qrcode'
 import { fetchAllScores, resetScores } from '../lib/scores'
 import {
   adminFindProfiles,
@@ -7,7 +8,14 @@ import {
   adminDeleteProfile,
   type AdminProfile,
 } from '../lib/profile'
-import { downloadDayReport, downloadFullReport, downloadBackup } from '../lib/exporting'
+import {
+  adminListCodes,
+  adminResetHunt,
+  fetchStandings,
+  TOTAL_STATES,
+  type HuntStanding,
+} from '../lib/hunt'
+import { downloadDayReport, downloadFullReport, downloadBackup, downloadHuntReport } from '../lib/exporting'
 import { GAMES } from '../games/registry'
 import { SCHEDULE, DAY_LABEL, type DayKey } from '../lib/schedule'
 import { setAdmin, isAdmin } from '../lib/admin'
@@ -88,10 +96,238 @@ export default function Admin() {
       <SummaryCard reloadKey={reloadKey} />
       <PlayAnyGame />
       <DownloadCard />
+      <LicensePlateAdmin />
       <ManagePlayers onChange={() => setReloadKey((k) => k + 1)} />
       <ResetCard onDone={() => setReloadKey((k) => k + 1)} />
     </div>
   )
+}
+
+// License Plate Challenge admin: print the code tiles, see standings + export,
+// and reset the challenge. Codes come from the DB (source of truth) so the
+// printed tiles always match what hunt_scan will accept.
+function LicensePlateAdmin() {
+  const [standings, setStandings] = useState<HuntStanding[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
+
+  const loadStandings = async () => {
+    setBusy('standings')
+    setMsg(null)
+    try {
+      setStandings(await fetchStandings(500))
+    } catch (e) {
+      setMsg({ kind: 'err', text: (e as Error)?.message ?? 'Could not load standings.' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  useEffect(() => {
+    loadStandings()
+  }, [])
+
+  const printTiles = async () => {
+    setBusy('print')
+    setMsg(null)
+    try {
+      const codes = await adminListCodes(ADMIN_PASSWORD ?? '')
+      if (codes.length === 0) throw new Error('No codes found — run supabase/license-plate-hunt.sql first.')
+      const origin = window.location.origin
+      const tiles = await Promise.all(
+        codes.map(async (code) => ({
+          code,
+          dataUrl: await QRCode.toDataURL(`${origin}/license-plate?c=${code}`, { margin: 1, width: 260 }),
+        })),
+      )
+      const win = window.open('', '_blank')
+      if (!win) throw new Error('Popup blocked — allow popups to print the tiles.')
+      win.document.write(tilesHtml(tiles))
+      win.document.close()
+      setMsg({ kind: 'ok', text: `Opened a print sheet with ${codes.length} code tiles.` })
+    } catch (e) {
+      setMsg({ kind: 'err', text: (e as Error)?.message ?? 'Could not build the print sheet.' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const doReset = async () => {
+    setBusy('reset')
+    setMsg(null)
+    try {
+      const n = await adminResetHunt(ADMIN_PASSWORD ?? '')
+      setMsg({ kind: 'ok', text: `Cleared the challenge (${n} collected plate${n === 1 ? '' : 's'} removed).` })
+      setConfirmReset(false)
+      await loadStandings()
+    } catch (e) {
+      setMsg({ kind: 'err', text: (e as Error)?.message ?? 'Reset failed.' })
+      setConfirmReset(false)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const finishers = standings?.filter((s) => s.states >= TOTAL_STATES).length ?? 0
+
+  return (
+    <section className="rounded-2xl bg-white p-6 shadow">
+      <h2 className="mb-1 font-display text-2xl">License Plate Challenge</h2>
+      <p className="mb-4 text-sm text-seven-dark/70">
+        Print the code tiles, hide them around campus, and players collect all {TOTAL_STATES} states.
+        Each tile shows its <strong>LP-</strong> code and a QR that opens the challenge. Standings rank
+        by most states, then earliest to get there.
+      </p>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          onClick={printTiles}
+          disabled={busy !== null}
+          className="rounded-full bg-seven-dark px-5 py-2.5 font-bold text-white disabled:opacity-50"
+        >
+          {busy === 'print' ? 'Building…' : '🖨️ Print code tiles'}
+        </button>
+        <button
+          onClick={() => standings && downloadHuntReport(standings)}
+          disabled={busy !== null || !standings || standings.length === 0}
+          className="rounded-full bg-seven-green px-5 py-2.5 font-bold text-white disabled:opacity-50"
+        >
+          Download standings (Excel)
+        </button>
+        <button
+          onClick={loadStandings}
+          disabled={busy !== null}
+          className="rounded-full border-2 border-seven-dark/15 px-5 py-2.5 font-bold disabled:opacity-50"
+        >
+          {busy === 'standings' ? '…' : 'Refresh'}
+        </button>
+      </div>
+
+      {msg && (
+        <p className={`mb-4 text-sm font-bold ${msg.kind === 'ok' ? 'text-seven-green' : 'text-seven-red'}`}>
+          {msg.text}
+        </p>
+      )}
+
+      {standings && standings.length > 0 ? (
+        <div className="overflow-x-auto">
+          <p className="mb-2 text-sm text-seven-dark/60">
+            {standings.length} player{standings.length === 1 ? '' : 's'} collecting · {finishers} finished all {TOTAL_STATES}
+          </p>
+          <table className="w-full text-left text-sm">
+            <thead className="text-xs uppercase tracking-wide text-seven-dark/50">
+              <tr>
+                <th className="py-1 pr-3">#</th>
+                <th className="py-1 pr-3">Player</th>
+                <th className="py-1 pr-3">@username</th>
+                <th className="py-1 pr-3">States</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings.slice(0, 50).map((s, i) => (
+                <tr key={s.profileId} className="border-t border-seven-dark/10">
+                  <td className="py-1.5 pr-3 font-display">{i + 1}</td>
+                  <td className="py-1.5 pr-3 font-bold">
+                    {s.firstName} {s.lastName}
+                  </td>
+                  <td className="py-1.5 pr-3 font-mono text-seven-green">@{s.username}</td>
+                  <td className="py-1.5 pr-3">
+                    {s.states}/{TOTAL_STATES}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-sm text-seven-dark/60">No plates collected yet.</p>
+      )}
+
+      <div className="mt-5 border-t border-seven-dark/10 pt-4">
+        <button
+          onClick={() => {
+            setMsg(null)
+            setConfirmReset(true)
+          }}
+          className="rounded-full border-2 border-seven-red/40 px-4 py-2 text-sm font-bold text-seven-red hover:bg-seven-red/5"
+        >
+          Reset the challenge
+        </button>
+      </div>
+
+      {confirmReset && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm reset challenge"
+          onClick={() => busy === null && setConfirmReset(false)}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-2 font-display text-xl text-seven-red">Reset the challenge?</h3>
+            <p className="mb-5 text-sm text-seven-dark/80">
+              This permanently clears <strong>every player’s collected states</strong> for the License
+              Plate Challenge. It does not touch other game scores or player accounts. This can’t be
+              undone.
+            </p>
+            <div className="grid gap-2">
+              <button
+                onClick={doReset}
+                disabled={busy !== null}
+                className="rounded-full bg-seven-red px-5 py-2.5 font-bold text-white disabled:opacity-50"
+              >
+                {busy === 'reset' ? 'Clearing…' : 'Yes, clear all collected states'}
+              </button>
+              <button
+                onClick={() => setConfirmReset(false)}
+                disabled={busy !== null}
+                className="rounded-full border-2 border-seven-dark/15 px-5 py-2.5 font-bold disabled:opacity-50"
+              >
+                No, keep the data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// The printable sheet: a grid of code tiles (QR + LP- code), each cut out and
+// hidden. Opens in its own window and triggers the print dialog.
+function tilesHtml(tiles: Array<{ code: string; dataUrl: string }>): string {
+  const cells = tiles
+    .map(
+      (t) => `
+      <div class="tile">
+        <img src="${t.dataUrl}" alt="${t.code}" />
+        <div class="code">${t.code}</div>
+        <div class="hint">License Plate Challenge — scan me on The Extra Mile</div>
+      </div>`,
+    )
+    .join('')
+  return `<!doctype html><html><head><meta charset="utf-8" />
+  <title>License Plate Challenge — code tiles</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 16px; }
+    h1 { font-size: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .tile { border: 2px dashed #bbb; border-radius: 10px; padding: 10px; text-align: center;
+            page-break-inside: avoid; }
+    .tile img { width: 100%; max-width: 200px; height: auto; }
+    .code { font: 700 20px ui-monospace, monospace; letter-spacing: 2px; margin-top: 4px; }
+    .hint { font-size: 10px; color: #666; margin-top: 2px; }
+    @media print { .noprint { display: none; } body { margin: 8mm; } }
+  </style></head>
+  <body onload="window.focus();window.print();">
+    <div class="noprint" style="margin-bottom:10px;">
+      <button onclick="window.print()">Print</button> — then cut along the dashed lines and hide the tiles around campus.
+    </div>
+    <h1>License Plate Challenge — ${tiles.length} code tiles</h1>
+    <div class="grid">${cells}</div>
+  </body></html>`
 }
 
 function SummaryCard({ reloadKey }: { reloadKey: number }) {
