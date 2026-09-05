@@ -31,14 +31,43 @@ const HANDS_PER_SESSION = 3 // banked-points session length
 const STARTING_HAND = 7 // cards dealt to each seat
 const CPU_TURN_MS = 900 // pause before a CPU acts, so the human can watch
 
-// Lane card-face styling. These are card art (not brand chrome), so four
-// distinct, legible lane colors — brand tokens stay on the page furniture.
-const LANE_STYLE: Record<Lane, { bg: string; text: string; label: string }> = {
-  red: { bg: '#EE1C25', text: '#fff', label: 'Red' },
-  blue: { bg: '#1D5FA8', text: '#fff', label: 'Blue' },
-  green: { bg: '#008061', text: '#fff', label: 'Green' },
-  yellow: { bg: '#F6C700', text: '#101820', label: 'Yellow' },
+// --- Lane card-art colors (single source of truth) ------------------------
+// The four lane fills used on card faces. THREE deliberately mirror existing
+// brand tokens (tailwind.config.js `seven.*`); ONE (blue) is the single
+// net-new card-art color that has no brand equivalent. This is card ART, not
+// page chrome, so it lives here as a labeled const rather than a theme token.
+//   red    #D4141C — brand seven-red (#EE1C25) darkened ONLY for the card-art
+//                    lane fill so 14px white text clears WCAG 1.4.3 (4.5:1).
+//                    The brand seven-red token stays #EE1C25 for chrome.
+//   blue   #1D5FA8 — deliberate card-art addition (no brand token). Approved.
+//   green  #008061 — mirrors brand seven-green
+//   yellow #F6C700 — mirrors brand seven-line (road dashes)
+const LANE_COLORS: Record<Lane, string> = {
+  red: '#D4141C',
+  blue: '#1D5FA8',
+  green: '#008061',
+  yellow: '#F6C700',
 }
+
+// Per-lane presentation. Beyond the fill, every lane carries a NON-COLOR cue:
+// a short code (RED/BLU/GRN/YEL) and a distinct glyph/shape, so lane is never
+// conveyed by hue alone (WCAG 1.4.1).
+const LANE_STYLE: Record<
+  Lane,
+  { bg: string; text: string; label: string; code: string; glyph: string }
+> = {
+  red: { bg: LANE_COLORS.red, text: '#fff', label: 'Red', code: 'RED', glyph: '▲' },
+  blue: { bg: LANE_COLORS.blue, text: '#fff', label: 'Blue', code: 'BLU', glyph: '●' },
+  green: { bg: LANE_COLORS.green, text: '#fff', label: 'Green', code: 'GRN', glyph: '■' },
+  yellow: { bg: LANE_COLORS.yellow, text: '#101820', label: 'Yellow', code: 'YEL', glyph: '◆' },
+}
+
+// Shared focus-visible ring for interactive elements. Uses an OUTLINE (not the
+// Tailwind `ring`) so it coexists with — and stays visually distinct from —
+// the orange `ring-seven-orange` "playable" state. Dark outline + offset gives
+// a >3:1 indicator on every surface (WCAG 2.4.7 / 1.4.11).
+const FOCUS_RING =
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seven-dark'
 
 function cardFace(card: Card): string {
   if (card.kind === 'number') return String(card.value)
@@ -57,19 +86,31 @@ function CardView({
   playable?: boolean
   small?: boolean
 }) {
-  const style = card.color ? LANE_STYLE[card.color] : { bg: '#101820', text: '#fff', label: '' }
+  const lane = card.color ? LANE_STYLE[card.color] : null
+  const style = lane ?? { bg: '#101820', text: '#fff' }
   const size = small ? 'h-16 w-11 text-xs' : 'h-24 w-16 text-sm'
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      aria-label={`${card.color ? LANE_STYLE[card.color].label + ' ' : ''}${cardFace(card)}`}
+      aria-label={`${lane ? lane.label + ' ' : ''}${cardFace(card)}`}
       style={{ backgroundColor: style.bg, color: style.text }}
-      className={`${size} flex shrink-0 items-center justify-center rounded-xl px-1 text-center font-display leading-tight shadow transition ${
+      className={`${size} ${FOCUS_RING} relative flex shrink-0 items-center justify-center rounded-xl px-1 text-center font-display leading-tight shadow transition ${
         onClick ? 'cursor-pointer' : 'cursor-default'
       } ${playable ? 'ring-4 ring-seven-orange -translate-y-2' : 'ring-1 ring-black/10'}`}
     >
+      {/* Non-color lane cue (glyph + code), visible to sighted users. Hidden
+          from AT since the aria-label already names the lane. */}
+      {lane && (
+        <span
+          aria-hidden
+          className="absolute left-1 top-0.5 flex items-center gap-0.5 text-[0.6rem] font-bold leading-none tracking-wide"
+        >
+          <span>{lane.glyph}</span>
+          <span>{lane.code}</span>
+        </span>
+      )}
       {cardFace(card)}
     </button>
   )
@@ -105,6 +146,7 @@ export default function FullThrottle({ onScore }: GameProps) {
   const rngRef = useRef<RNG>(makeRng(Date.now()))
   const cpuTimer = useRef<number | undefined>(undefined)
   const scoredRef = useRef(false) // guards the single onScore call
+  const firstWildRef = useRef<HTMLButtonElement>(null) // focus target when picker opens
 
   const seatCount = cpuCount + 1
 
@@ -115,6 +157,11 @@ export default function FullThrottle({ onScore }: GameProps) {
     }
   }
   useEffect(() => () => clearCpuTimer(), [])
+
+  // When the wild lane-picker opens, move keyboard focus into it (WCAG 2.4.3).
+  useEffect(() => {
+    if (pickingWild !== null) firstWildRef.current?.focus()
+  }, [pickingWild])
 
   // Begin a hand: deal and reset per-hand UI flags.
   const startHand = useCallback(
@@ -292,14 +339,14 @@ export default function FullThrottle({ onScore }: GameProps) {
             className="w-full accent-seven-orange"
             aria-label="Number of CPU drivers"
           />
-          <div className="mt-1 flex justify-between text-xs text-seven-dark/50">
+          <div className="mt-1 flex justify-between text-xs text-seven-dark/70">
             <span>{MIN_CPU}</span>
             <span>{MAX_CPU}</span>
           </div>
         </div>
         <button
           onClick={startSession}
-          className="rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow"
+          className={`${FOCUS_RING} rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow`}
         >
           Start engines
         </button>
@@ -319,13 +366,18 @@ export default function FullThrottle({ onScore }: GameProps) {
           Hand {handIndex + 1} / {HANDS_PER_SESSION}
         </span>
         <span className="flex items-center gap-2">
-          <span className="text-seven-dark/60">Lane</span>
-          <span
-            className="inline-block h-4 w-4 rounded-full ring-1 ring-black/20"
-            style={{ backgroundColor: activeStyle.bg }}
-            aria-label={`Active lane ${activeStyle.label}`}
-          />
-          <span className="text-seven-dark/60">
+          <span className="text-seven-dark/70">Lane:</span>
+          {/* Lane named as visible TEXT; dot + glyph reinforce, never stand alone. */}
+          <span className="inline-flex items-center gap-1 font-bold text-seven-dark">
+            <span
+              aria-hidden
+              className="inline-block h-4 w-4 rounded-full ring-1 ring-black/20"
+              style={{ backgroundColor: activeStyle.bg }}
+            />
+            <span aria-hidden>{activeStyle.glyph}</span>
+            <span>{activeStyle.code}</span>
+          </span>
+          <span className="text-seven-dark/70">
             {state.direction === 1 ? 'order →' : 'order ←'}
           </span>
         </span>
@@ -363,7 +415,7 @@ export default function FullThrottle({ onScore }: GameProps) {
             onClick={humanDraw}
             disabled={!humanTurn || humanHasPlay || awaitingPass}
             aria-label="Draw a card"
-            className="disabled:opacity-50"
+            className={`${FOCUS_RING} rounded-xl disabled:opacity-50`}
           >
             <CardBack />
           </button>
@@ -380,23 +432,42 @@ export default function FullThrottle({ onScore }: GameProps) {
       {/* Wild lane picker */}
       {pickingWild !== null && (
         <div className="mb-5 rounded-xl bg-seven-cream p-4 text-center">
-          <p className="mb-3 text-sm font-bold">Pick a lane</p>
-          <div className="flex justify-center gap-3">
-            {LANES.map((lane) => (
-              <button
-                key={lane}
-                onClick={() => chooseWildLane(lane)}
-                aria-label={`Choose ${LANE_STYLE[lane].label} lane`}
-                style={{ backgroundColor: LANE_STYLE[lane].bg }}
-                className="h-10 w-10 rounded-full shadow ring-1 ring-black/20"
-              />
-            ))}
+          <p id="wild-picker-label" className="mb-3 text-sm font-bold">
+            Pick a lane
+          </p>
+          <div role="group" aria-labelledby="wild-picker-label" className="flex justify-center gap-3">
+            {LANES.map((lane, i) => {
+              const meta = LANE_STYLE[lane]
+              return (
+                <button
+                  key={lane}
+                  ref={i === 0 ? firstWildRef : undefined}
+                  onClick={() => chooseWildLane(lane)}
+                  aria-label={`Choose ${meta.label} lane`}
+                  className={`${FOCUS_RING} flex flex-col items-center gap-1 rounded-xl p-1`}
+                >
+                  {/* Color swatch + glyph; visible lane NAME below, never color alone. */}
+                  <span
+                    aria-hidden
+                    style={{ backgroundColor: meta.bg, color: meta.text }}
+                    className="flex h-10 w-10 items-center justify-center rounded-full font-display text-lg shadow ring-1 ring-black/20"
+                  >
+                    {meta.glyph}
+                  </span>
+                  <span className="text-xs font-bold text-seven-dark">{meta.label}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* Turn / message line */}
-      <p className="mb-2 min-h-5 text-center text-sm font-bold text-seven-dark/70">
+      {/* Turn / message line — announced so SR players hear turn/hand changes. */}
+      <p
+        role="status"
+        aria-live="polite"
+        className="mb-2 min-h-5 text-center text-sm font-bold text-seven-dark/70"
+      >
         {message ||
           (humanTurn
             ? humanHasPlay
@@ -425,7 +496,7 @@ export default function FullThrottle({ onScore }: GameProps) {
         <div className="mt-4 text-center">
           <button
             onClick={humanPass}
-            className="rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow"
+            className={`${FOCUS_RING} rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow`}
           >
             Pass
           </button>
@@ -439,7 +510,7 @@ export default function FullThrottle({ onScore }: GameProps) {
           <p className="mt-2 text-seven-dark/70">{message}</p>
           <button
             onClick={nextHand}
-            className="mt-4 rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow"
+            className={`${FOCUS_RING} mt-4 rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow`}
           >
             Next hand
           </button>
@@ -456,7 +527,7 @@ export default function FullThrottle({ onScore }: GameProps) {
           </p>
           <button
             onClick={() => setPhase('setup')}
-            className="mt-4 rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow"
+            className={`${FOCUS_RING} mt-4 rounded-full bg-seven-green px-6 py-3 font-bold text-white shadow`}
           >
             New session
           </button>
